@@ -79,6 +79,9 @@ asyncBash_set_keys() {
     bind -x '"\C-ge1": "history -d $asyncBash_historyid"'
     #show the msgs in the queue below the PS1
     bind -x '"\C-ge2": "asyncBash_show_msgs_below_ps1"'
+
+    #Load vi insert mode user keybindings
+    bind -f "${BASH_SOURCE%/*}/asyncBash.inputrc"
 }
 
 
