@@ -7,6 +7,8 @@ $if mode=vi
 #Insert mode
 set keymap vi-insert
 
+Control-e: end-of-line
+
 #############
 # asyncBash #
 #############

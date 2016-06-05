@@ -76,7 +76,7 @@ asyncBash_set_keys() {
     #End function
     bind    '"\C-ge": "\eki\C-ge1\C-ge2"'
     #delete just rewrote history line 
-    bind -x '"\C-ge1": "history -d $asyncBash_historyid"'
+    bind -x '"\C-ge1": " ((asyncBash_historyid >0)) && history -d $asyncBash_historyid"'
     #show the msgs in the queue below the PS1
     bind -x '"\C-ge2": "asyncBash_show_msgs_below_ps1"'
 
@@ -87,10 +87,12 @@ asyncBash_set_keys() {
 
 #Substitute last command with $1
 asyncBash_substitute_command_line() {
-    #remove last history entry 
-    history -d $asyncBash_historyid
-    #append to history line
-    history -s "$@"
+    if ((asyncBash_historyid>0)); then
+        #remove last history entry 
+        history -d $asyncBash_historyid
+        #append to history line
+        history -s "$@"
+    fi
 }
 
 
@@ -186,7 +188,16 @@ asyncBash_clean_screen_msgs() {
     fi
 }
 
-#Load the keybindings
-asyncBash_set_keys 
-#And load the user functions
-. "${BASH_SOURCE%/*}/my_fun.sh"
+#Load the shortkeys and hoot it to the PS1
+asyncBash_load() {
+    #Load the keybindings
+    asyncBash_set_keys 
+    #Load the user functions
+    . "${BASH_SOURCE%/*}/my_fun.sh"
+    #hook it to the PS1
+    PS1+="$(asyncBash_hook)"
+}
+
+
+#Load it
+asyncBash_load
