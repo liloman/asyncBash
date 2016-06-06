@@ -80,32 +80,28 @@ set_cmd_number() {
     fi
 }
 
-#Show a legend below prompt with the arguments of a relative command number
-show_relative_command_number_args() {
-    #get history id
-    local -i id=$((asyncBash_historyid-$1))
-    local hist=$(fc -nlr $id $id)
-    local -a hista=($hist)
-    local idx=
-    local msg=
-    local args="*)"
-    for idx in "${!hista[@]}";do
-        msg+="$idx) ${hista[$idx]}    "
-        ((idx>0)) && args+=" ${hista[$idx]} "
-    done
-
-    asyncBash_add_msg_below_ps1 "$msg  $args"
-}
-
-
 
 #Insert the relative command number from the actual
 insert_relative_command_number() {
     [[ -z $asyncBash_current_cmd_line ]] && return
+    #Show a legend below prompt with the arguments of a relative command number
+    show_relative_command_number_args() {
+        #get history id
+        local -i id=$((asyncBash_historyid-$1))
+        local hist=$(fc -nlr $id $id)
+        local -a hista=($hist)
+        local idx=
+        local msg=
+        local args="*)"
+        for idx in "${!hista[@]}";do
+            msg+="$idx) ${hista[$idx]}    "
+            ((idx>0)) && args+=" ${hista[$idx]} "
+        done
+
+        asyncBash_add_msg_below_ps1 "$msg  $args"
+    }
     #Clean possible previous asyncBash calls
     asyncBash_clean_screen_msgs
-    #and hook Ctrl-q to clean the messages without a msg
-    bind -x '"\C-q": asyncBash_clean_screen_msgs'
     local -a cmda=($asyncBash_current_cmd_line)
     #get last argument index
     local idx=$((${#cmda[@]}-1))
@@ -121,9 +117,11 @@ insert_relative_command_number() {
     #works with 0...-N to go before current session... :)
     if (( cmdnumber > arg )); then
         dest=!-$((cmdnumber - arg)): 
-        #show a legend with the possible arguments
         #do not tamper with shopt -s histverify
-        asyncBash_add_msg_below_ps1 ". " 
+        asyncBash_add_msg_below_ps1 "empty" 
+        #hook Ctrl-q to clean the messages without a msg
+        bind -x '"\C-q": asyncBash_clean_screen_msgs'
+        #show a legend with the possible arguments
         asyncBash_add_msg_below_ps1 "Enter Control-q to clean screen messages" yes
         asyncBash_add_msg_below_ps1 "Possible values for $arg:" 
         show_relative_command_number_args $((cmdnumber - arg))

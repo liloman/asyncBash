@@ -27,7 +27,7 @@ asyncBash_before_in() { :; }
 asyncBash_on_hook()   { :; }
 
 #Hook function to work with asyncBash
-#Call it on your PS1
+#Call it on your PROMPT_COMMAND
 asyncBash_hook() {
     #If not a asyncBash call
     if ((!asyncBash_flag_on)); then
@@ -153,6 +153,7 @@ asyncBash_show_msgs_below_ps1() {
     if ((asyncBash_msgs_in_queue)); then 
         #move cursor 1 line below PS1
         tput cup $((asyncBash_consolerow+asyncBash_prompt_command_lines)) 0
+
         #for each message
         for id in ${!asyncBash_msgs_below_ps1_order[@]}; do
             #get msg
@@ -162,10 +163,13 @@ asyncBash_show_msgs_below_ps1() {
             #if temporal not show again
             #otherwise mark messages in the queue for the next possible call
             [[ $fix == no ]] && asyncBash_del_msg_below_ps1 $id || found=1
+            [[ $msg == empty ]] && msg=
+            #force scroll
+            tput cud1
             #clean the line 
             tput el
             #print the msg (should the msg be cleaned after x seconds?)
-            echo $msg 
+            echo -n "$msg"
         done
         #restore cursor
         tput cup $((asyncBash_consolerow+asyncBash_prompt_command_lines-1)) 0
@@ -194,8 +198,8 @@ asyncBash_load() {
     asyncBash_set_keys 
     #Load the user functions
     . "${BASH_SOURCE%/*}/my_fun.sh"
-    #hook it to the PS1
-    PS1+="$(asyncBash_hook)"
+    #Hook asyncBash to PROMPT_COMMAND
+    PROMPT_COMMAND+=";asyncBash_hook"
 }
 
 
