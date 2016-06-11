@@ -29,5 +29,7 @@ Control-r: "\C-gs\C-gb1\C-ge\C-e"
 # forward
 Control-s: "\C-gs\C-gb2\C-ge\C-e"
 
+# \e is Alt/M- for keybindings
+"\eh": "\C-gs\C-gb3\C-ge\C-e"
 
 $endif

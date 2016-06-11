@@ -40,6 +40,8 @@ bind -x '"\C-gb1": search_substring_history backward'
 #Forward search
 bind -x '"\C-gb2": search_substring_history forward'
 
+#Display a cheatsheet for the current command
+bind -x '"\C-gb3": give_command_hint'
 
 ########################
 #  User defined hooks  #
@@ -66,6 +68,28 @@ asyncBash_on_hook()   {
 #  Functions  #
 ###############
 
+
+#Display a cheatsheet for the current command
+#from ~/.local/hints
+give_command_hint() {
+    [[ -z $asyncBash_current_cmd_line ]] && return
+    #Clean possible previous asyncBash calls
+    asyncBash_clean_screen_msgs
+    local -a cmda=($asyncBash_current_cmd_line)
+    local cmd=${cmda[0]}
+    local file="$HOME/.local/hints/$cmd.txt"
+    if [[ -e $file  ]]; then
+        bind -x '"\C-q": asyncBash_clean_screen_msgs'
+        #show a legend with the possible arguments
+        asyncBash_add_msg_below_ps1 "Enter Control-q to clean screen messages" yes
+        while IFS= read -r line; do 
+            asyncBash_add_msg_below_ps1 "$line"
+        done < $file
+    fi
+    local write="${cmda[@]:-1}"
+    #Substitute history line
+    asyncBash_substitute_command_line "$write"
+}
 
 #1.Bash doesn't get into account of histcontrol and histignore with \#
 #so you must roll on your on solution (cmdnumber).It's been reported to bash bug...
