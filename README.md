@@ -7,10 +7,10 @@ Make "async" calls from your bash prompt and get the results back in the same co
 ```bash
 cd ~/yourDir
 git clone https://github.com/liloman/asyncBash
-echo "~/yourDir/asyncBash/asyncBash.sh" >> ~/.bashrc
+echo ". ~/yourDir/asyncBash/asyncBash.sh" >> ~/.bashrc
 ```
 
-If you have like me a multiline prompt you can set this variable to your extra PS1 lines, in my case:
+If you have like me a multiline prompt you can set this variable to your extra `PS1` lines, in my case:
 
 ```bash
 asyncBash_prompt_command_lines=2 
@@ -20,8 +20,8 @@ asyncBash_prompt_command_lines=2
 
 #Tutorial
 
-Let's make a simple keybinding that displays a hint below the PS1 when the user presses Alt-h.
-Suppose you want to display your custom hint/cheatsheet for the current command just below your PS1.
+Let's make a simple keybinding that displays a hint below the `PS1` when the user presses `Alt-h`.
+Suppose you want to display your custom hint/cheatsheet for the current command just below your `PS1`.
 
 Your goal is something like:
 
@@ -72,7 +72,7 @@ bind -x '"\C-gb3": give_command_hint'
 
 ```
 
-So now, we have make almost all the keybindings (there's one left ctl-q).
+So now, we have make almost all the keybindings (there's one left `ctl-q` ).
 Remember you must make a pretty generic keybinding in asyncBash.inputrc and then the actual user keybinding in my_fun.sh.
 
 
@@ -167,7 +167,7 @@ Wow. :D
 
 Basically we have read the file line by line (proper way in bash), added each line to a queue to be displayed below the PS1 and finally rewrite the command line without the first '#', so 100% equal.
 
-There is an obvious error we don't check for the file but the important is that there is a keybinding remaining already (remember Ctl-q to clean the screen).
+There is an obvious error we don't check for the file but the important is that there is a keybinding remaining already (did you remember `Ctl-q` to clean the screen?).
 
 
 ```bash
