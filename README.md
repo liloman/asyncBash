@@ -16,6 +16,21 @@ If you have like me a multiline prompt you can set this variable to your extra `
 asyncBash_prompt_command_lines=2 
 ```
 
+#Use
+
+It cames with 3 predefined keybindings.
+* Alt-h shows a cheatsheet for the current command. (I have maden it along the tutorial below) :D
+
+![Hints command](images/hints.gif "Hints gif")
+
+* Ctrl-h command number, uses relative history expansion (I have waited for something alike for years)
+
+![Relative history expansion](images/history.gif "Relative history expansion")
+
+
+* Ctrl-r/s search for a substring argument in history (I have waited for something alike for years too)
+
+![Substring argument search](images/substring.gif "Substring argument search")
 
 
 #Tutorial
@@ -224,6 +239,10 @@ Here we are!.
 
 
 It's so easy, nice and simple that I've made it along this tutorial and added to the default user functions. :rocket:
+
+#HOW
+
+100% bash scripting with a little help of tput. ;)
 
 #FAQ
 
