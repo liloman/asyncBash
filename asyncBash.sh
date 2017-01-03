@@ -117,7 +117,7 @@ asyncBash_save_current_row() {
 #add a msg to show it below the PS1
 #$2 to indicate if must be fixed until command execution
 asyncBash_add_msg_below_ps1() {
-    local msg=$1
+    local msg=${1:-empty}
     local fix=${2:-no}
     asyncBash_msgs_below_ps1_order+=("$msg")
     asyncBash_msgs_below_ps1[$msg]=$fix

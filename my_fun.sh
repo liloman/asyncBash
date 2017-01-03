@@ -40,8 +40,17 @@ bind -x '"\C-gb1": search_substring_history backward'
 #Forward search
 bind -x '"\C-gb2": search_substring_history forward'
 
-#Display a cheatsheet for the current command
-bind -x '"\C-gb3": give_command_hint'
+#Display a cheatsheet for the first command on the cli
+bind -x '"\C-gb3": show_command_hints 0'
+
+#Display a cheatsheet for the last command on the cli
+bind -x '"\C-gb4": show_command_hints 1'
+
+#Create/edit a cheatsheet for the first command
+bind -x '"\C-gb5": edit_command_hint 0'
+
+#Create/edit a cheatsheet for the first command
+bind -x '"\C-gb6": edit_command_hint 1'
 
 ########################
 #  User defined hooks  #
@@ -54,7 +63,7 @@ asyncBash_after_out() {
     currentSearchIdx=0
 }
 
-#Execute this when an asyncBash call
+#Execute this when in an asyncBash call
 asyncBash_before_in() { :; }
 
 #Execute this after any command
@@ -68,27 +77,91 @@ asyncBash_on_hook()   {
 #  Functions  #
 ###############
 
-
 #Display a cheatsheet for the current command
 #from ~/.local/hints
-give_command_hint() {
+edit_command_hint() {
     [[ -z $asyncBash_current_cmd_line ]] && return
     #Clean possible previous asyncBash calls
     asyncBash_clean_screen_msgs
     local -a cmda=($asyncBash_current_cmd_line)
-    local cmd=${cmda[0]}
+    local last=$1
+    local cmd=
+    (( $last )) && cmd=${cmda[-1]}  || cmd=${cmda[0]}
     local file="$HOME/.local/hints/$cmd.txt"
+
+    if [[ $cmd == hints  ]]; then
+        asyncBash_add_msg_below_ps1 "Can't edit $cmd command cause it's special" 
+        #Substitute history line
+        asyncBash_substitute_command_line "${cmda[@]:-1}"
+        return
+    fi
+
     if [[ -e $file  ]]; then
-        bind -x '"\C-q": asyncBash_clean_screen_msgs'
         #show a legend with the possible arguments
+        asyncBash_add_msg_below_ps1 "editting the hint with $EDITOR" 
+    else
+        asyncBash_add_msg_below_ps1 "created a new file and editting it with $EDITOR" 
+    fi
+    $EDITOR $file
+    #Substitute history line
+    asyncBash_substitute_command_line "${cmda[@]:-1}"
+}
+
+#Display a cheatsheet for the current command
+#from ~/.local/hints
+show_command_hints() {
+    [[ -z $asyncBash_current_cmd_line ]] && return
+    #Clean possible previous asyncBash calls
+    asyncBash_clean_screen_msgs
+    local -a cmda=($asyncBash_current_cmd_line)
+    local last=$1
+    local cmd=
+    local keybin="Alt + e"
+    if (( $last )); then
+        cmd=${cmda[-1]} 
+        keybin=$keybin" + l"
+    else
+        cmd=${cmda[0]}
+        keybin=$keybin" + f"
+    fi
+    local path="$HOME/.local/hints"
+    local file="$path/$cmd.txt"
+    local i=0
+
+    #create it if it doesn't exist
+    [[ ! -e $path ]] && mkdir -p $path
+
+    #special argument to list all the hints
+    if [[ $cmd == hints  ]]; then
+        for file in $(shopt -s dotglob;echo "$path/"*.txt); do
+            file=${file##*/}; file=${file::-4}
+            ((i)) || asyncBash_add_msg_below_ps1 "Listing all hints (use dhint/$EDITOR to remove one):"  
+            ((i++))
+            [[ $file == '*' ]] && break #no luck
+            asyncBash_add_msg_below_ps1 "$i)"
+        done
+    elif [[ -e $file  ]]; then #exact match
+        bind -x '"\C-q": asyncBash_clean_screen_msgs'
         asyncBash_add_msg_below_ps1 "Enter Control-q to clean screen messages" yes
         while IFS= read -r line; do 
             asyncBash_add_msg_below_ps1 "$line"
         done < $file
+    else #don't found suggest similar hints
+        bind -x '"\C-q": asyncBash_clean_screen_msgs'
+        asyncBash_add_msg_below_ps1 "Enter Control-q to clean screen messages" yes
+        asyncBash_add_msg_below_ps1 "You can created a new file or edit it with $EDITOR with $keybin" 
+
+        for file in $(shopt -s dotglob;echo "$path/$cmd"*.txt); do
+            file=${file##*/}; file=${file::-4}
+            [[ $file == $cmd'*' ]] && break #no luck
+            ((i)) || asyncBash_add_msg_below_ps1 "Exact match not found. Possible values are:"  
+            ((i++))
+            asyncBash_add_msg_below_ps1 "$i)${file}"
+        done
     fi
-    local write="${cmda[@]:-1}"
+
     #Substitute history line
-    asyncBash_substitute_command_line "$write"
+    asyncBash_substitute_command_line "${cmda[@]:-1}"
 }
 
 #1.Bash doesn't get into account of histcontrol and histignore with \#
@@ -97,10 +170,10 @@ give_command_hint() {
 # in bash 4.4 you sould be able to use prompt expansion echo ${PS1@P}
 set_cmd_number() {
     if ((prev_historyid!=asyncBash_historyid));then
-       if ((!asyncBash_flag_on)); then
-           ((cmdnumber++)) 
-           prev_historyid=asyncBash_historyid
-       fi
+        if ((!asyncBash_flag_on)); then
+            ((cmdnumber++)) 
+            prev_historyid=asyncBash_historyid
+        fi
     fi
 }
 
@@ -222,15 +295,15 @@ search_substring_history(){
             if (( currentSearchIdx < $(( ${#arrayhistory[@]}-1 )) )); then
                 ((currentSearchIdx++))
             else
-                end=1
-            fi
-        else #forward
-            if (( currentSearchIdx > 0 )); then
-                ((currentSearchIdx--))
-            else
-                end=1
-            fi
+            end=1
         fi
+    else #forward
+        if (( currentSearchIdx > 0 )); then
+            ((currentSearchIdx--))
+        else
+        end=1
+    fi
+fi
     fi
 
     if ((!end)); then
