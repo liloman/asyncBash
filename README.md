@@ -64,14 +64,14 @@ NOTE: \e is Alt/M- for keybindings
 ```
 Pretty trivial:
 1.C-gs to "transfer" the line to bash (start)
-2.C-gb3 execute our bash function (we'll call it give_command_hint) when we'll process the current command line
+2.C-gb3 execute our bash function (we'll call it show_command_hints) when we'll process the current command line
 3.C-ge to transfer back the modified command line (end)
 4.Return to the last position of our command line in insert mode
 
 
 ##Bind Alt-h with the bash function
 
-Above we have typed that C-gb3 will call our bash function (give_command_hint).
+Above we have typed that C-gb3 will call our bash function (show_command_hints).
 So we need to make that association.
 
 All the user stuff will be added to my_fun.sh, search for BINDS and add:
@@ -83,7 +83,7 @@ All the user stuff will be added to my_fun.sh, search for BINDS and add:
 ###########
 ...
 #Display a cheatsheet for the current command
-bind -x '"\C-gb3": give_command_hint'
+bind -x '"\C-gb3": show_command_hints'
 
 ```
 
@@ -102,8 +102,8 @@ The last step is to make the function. Let's search for Functions and add: :)
 ###############
 
 #Display a cheatsheet for the current command
-#from ~/.local/hints
-give_command_hint() {
+#from ~/.local/share/asyncBash/hints
+show_command_hints() {
     asyncBash_add_msg_below_ps1 "I will show you a nice cheatsheet"
 }
 ```
@@ -120,8 +120,8 @@ So let's fill it:
 
 ```bash
 #Display a cheatsheet for the current command
-#from ~/.local/hints
-give_command_hint() {
+#from ~/.local/share/asyncBash/hints
+show_command_hints() {
     [[ -z $asyncBash_current_cmd_line ]] && return
     #Clean possible previous asyncBash calls
     asyncBash_clean_screen_msgs
@@ -139,18 +139,18 @@ I will show you a nice cheatsheet for tell
 
 So basically we check that there is a current command, clean possible previous messages from this framework and get the first command on the current command line.
 We need now just check for a file in certain path a just show it!. :D
-Let's say that ~/.local/hints/$cmd.txt is our path:
+Let's say that ~/.local/share/asyncBash/hints/$cmd.txt is our path:
 
 ```bash
 #Display a cheatsheet for the current command
-#from ~/.local/hints
-give_command_hint() {
+#from ~/.local/share/asyncBash/hints
+show_command_hints() {
     [[ -z $asyncBash_current_cmd_line ]] && return
     #Clean possible previous asyncBash calls
     asyncBash_clean_screen_msgs
     local -a cmda=($asyncBash_current_cmd_line)
     local cmd=${cmda[0]}
-    local file="$HOME/.local/hints/$cmd.txt"
+    local file="$HOME/.local/share/asyncBash/hints/$cmd.txt"
     asyncBash_add_msg_below_ps1 "I will show you a nice cheatsheet for $cmd"
     while IFS= read -r line; do 
         asyncBash_add_msg_below_ps1 "$line"
@@ -188,13 +188,13 @@ There is an obvious error we don't check for the file but the important is that 
 ```bash
 #Display a cheatsheet for the current command
 #from ~/.local/hints
-give_command_hint() {
+show_command_hints() {
     [[ -z $asyncBash_current_cmd_line ]] && return
     #Clean possible previous asyncBash calls
     asyncBash_clean_screen_msgs
     local -a cmda=($asyncBash_current_cmd_line)
     local cmd=${cmda[0]}
-    local file="$HOME/.local/hints/$cmd.txt"
+    local file="$HOME/.local/share/asyncBash/hints/$cmd.txt"
     if [[ -e $file  ]]; then
         bind -x '"\C-q": asyncBash_clean_screen_msgs'
         #show a legend with the possible arguments

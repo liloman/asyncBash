@@ -93,7 +93,7 @@ go_down(){
 
 
 #Display a cheatsheet for the current command
-#from ~/.local/hints
+#from ~/.local/share/asyncBash/hints
 edit_command_hint() {
     [[ -z $asyncBash_current_cmd_line ]] && return
     #Clean possible previous asyncBash calls
@@ -102,7 +102,7 @@ edit_command_hint() {
     local last=$1
     local cmd=
     (( $last )) && cmd=${cmda[-1]}  || cmd=${cmda[0]}
-    local file="$HOME/.local/hints/$cmd.txt"
+    local file="$HOME/.local/share/asyncBash/hints/$cmd.txt"
 
     if [[ $cmd == hints  ]]; then
         asyncBash_add_msg_below_ps1 "Can't edit $cmd command cause it's special" 
@@ -139,7 +139,7 @@ show_command_hints() {
         cmd=${cmda[0]}
         keybin=$keybin" + f"
     fi
-    local path="$HOME/.local/hints"
+    local path="$HOME/.local/share/asyncBash/hints"
     local file="$path/$cmd.txt"
     local i=0
 
