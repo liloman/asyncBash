@@ -280,7 +280,7 @@ search_substring_history(){
         arrayhistory=()
         #get last argument
         arg=${cmda[$idx]}
-        #echo "Indexing."
+        echo -n "Indexing...Hold your horses"
         #load search in arrayhistory
         while IFS= read -r lines;
         do
@@ -300,6 +300,9 @@ search_substring_history(){
                 done
             fi
         done < <(fc -nlr 1)
+        #Clean indexing msg
+        tput hpa 0 #move to column 0
+        tput el #clean the from cursor to end of line
 
         asyncBash_add_msg_below_ps1  "Enter Control-q to reset search" yes
         #and set the global values
