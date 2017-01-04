@@ -42,15 +42,15 @@ bind -x '"\C-gb2": search_substring_history forward'
 
 #Display a cheatsheet for the first command on the cli
 bind -x '"\C-gb3": show_command_hints 0'
-
 #Display a cheatsheet for the last command on the cli
 bind -x '"\C-gb4": show_command_hints 1'
-
 #Create/edit a cheatsheet for the first command
 bind -x '"\C-gb5": edit_command_hint 0'
-
-#Create/edit a cheatsheet for the first command
+#Create/edit a cheatsheet for the last command
 bind -x '"\C-gb6": edit_command_hint 1'
+
+#Test for newlines on the bottom
+bind -x '"\C-gb7": go_down'
 
 ########################
 #  User defined hooks  #
@@ -76,6 +76,21 @@ asyncBash_on_hook()   {
 ###############
 #  Functions  #
 ###############
+
+go_down(){
+    #Clean possible previous asyncBash calls
+    local -a cmda=($asyncBash_current_cmd_line "funciona")
+    asyncBash_clean_screen_msgs
+    asyncBash_add_msg_below_ps1 "go downs 0" 
+    asyncBash_add_msg_below_ps1 "go downs 1" 
+    asyncBash_add_msg_below_ps1 "go downs 2" 
+    asyncBash_add_msg_below_ps1 "go downs 3" 
+    asyncBash_add_msg_below_ps1 "go downs 4" 
+    asyncBash_add_msg_below_ps1 "go downs 5" 
+    #Substitute history line
+    asyncBash_substitute_command_line "${cmda[@]:-1}"
+}
+
 
 #Display a cheatsheet for the current command
 #from ~/.local/hints
