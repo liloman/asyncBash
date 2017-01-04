@@ -250,3 +250,8 @@ Why wasn't it invented before?
 
 Now it is! :roller_coaster:
 
+###FIXED
+
+1. ~~output when scrolling is needed~~
+2. ~~chained calls with scroll~~
+

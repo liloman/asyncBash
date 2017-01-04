@@ -111,12 +111,15 @@ asyncBash_restore_row_position() {
         tput cup $(($asyncBash_consolerow-$asyncBash_prompt_command_lines+1)) 0
     else #Special case when the prompt is in the last row (bottom of the terminal)
         #if in bottom and no previous command (but asyncBash call or empty line)
+        # 2 use cases: prev or no prev command
+        # sleep 4 # uncomment for debug ;)
         if (( $current_row == $max_rows )); then
             tput cup $(($asyncBash_consolerow-$asyncBash_prompt_command_lines)) 0
-        else # the user execute a previous command (?¿)
+        else # the user executed a previous command so the consolerow could be wrong
           local -i diff=$((current_row - max_rows))
           tput cup $(($asyncBash_consolerow-$asyncBash_prompt_command_lines-$diff)) 0
         fi
+        # sleep 4 # uncomment for debug ;)
     fi
     #clean screen below PS1
     tput ed
@@ -195,12 +198,19 @@ asyncBash_show_msgs_below_ps1() {
             echo -n "$msg"
         done
 
-        #restore cursor
+        local -i old_row=$(($asyncBash_consolerow + $asyncBash_prompt_command_lines - 1)) 
+
+        # the output doesn't need scrolling put the cursor where it was before the output
         if (( $final_row <= $max_rows )); then
-            tput cup $(($asyncBash_consolerow+$asyncBash_prompt_command_lines-1)) 0
-        else #if in the last line
+            tput cup $old_row 0
+        else # the terminal needs to do scrolling to show the output
+            #sleep 2 # (uncomment to debug) ;)
+            # echo -n "current: $asyncBash_consolerow"
             local -i diff=$(( $final_row - $max_rows ))
-            tput cup $(($asyncBash_consolerow+$asyncBash_prompt_command_lines-1-$diff)) 0
+            tput cup $(($old_row - $diff)) 0
+            #adjust real position for chained calls
+            ((asyncBash_consolerow-=diff))
+            #sleep 2 # (uncomment to debug) ;)
         fi
         #set flag queue
         asyncBash_msgs_in_queue=$found
