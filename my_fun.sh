@@ -223,6 +223,8 @@ insert_relative_command_number() {
 
     if [[ ! $arg =~ ^-?[0-9]+([0-9]+)?$ ]]; then
         asyncBash_add_msg_below_ps1 "error:$arg is not a number"
+        #Substitute history line
+        asyncBash_substitute_command_line "${asyncBash_current_cmd_line}"
         return
     fi
     #substract the current command number with the destiny (last argument)
