@@ -153,7 +153,7 @@ show_command_hints() {
             ((i)) || asyncBash_add_msg_below_ps1 "Listing all hints (use dhint/$EDITOR to remove one):"  
             ((i++))
             [[ $file == '*' ]] && break #no luck
-            asyncBash_add_msg_below_ps1 "$i)"
+            asyncBash_add_msg_below_ps1 "$i) $file"
         done
     elif [[ -e $file  ]]; then #exact match
         bind -x '"\C-q": asyncBash_clean_screen_msgs'
