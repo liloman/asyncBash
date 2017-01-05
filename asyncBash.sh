@@ -19,8 +19,10 @@ declare -gi asyncBash_prompt_command_lines=0
 declare -gi asyncBash_flag_on=0
 #Get current number of lines/rows of the terminal
 declare -gi max_rows=$(tput lines)
+#Number of empty lines in a msg
+declare -gi asyncBash_empty_lines=0
 
-#Defined by user
+#Defined by user do not edit
 #Execute this when not an asyncBash call
 asyncBash_after_out() { :; }
 #Execute this when an asyncBash call
@@ -43,6 +45,7 @@ asyncBash_hook() {
         asyncBash_restore_row_position
         #Call user preparation function
         asyncBash_before_in
+        asyncBash_empty_lines=0
     fi
 
     #set asyncBash envirovment
@@ -144,12 +147,24 @@ asyncBash_save_current_row() {
 
 #add a msg to show it below the PS1
 #$2 to indicate if must be fixed until command execution
+#the msg line is cut to the current column number cause when displayed
+#the terminal wrapping is disabled temporalily due usability mesures
 asyncBash_add_msg_below_ps1() {
     local msg=${1:-empty}
     local fix=${2:-no}
-    asyncBash_msgs_below_ps1_order+=("$msg")
-    asyncBash_msgs_below_ps1[$msg]=$fix
-    asyncBash_msgs_in_queue=1
+    #number of columns of the terminal
+    local -i step=$(tput cols)
+    local -i end=${#msg}
+    local msg_cut=""
+    
+    for start in $(eval echo {0..$end..$step}); do
+        msg_cut=${msg:$start:$step}
+        asyncBash_msgs_below_ps1_order+=("$msg_cut")
+        #remove escape characters and save it
+        asyncBash_msgs_below_ps1[${msg_cut/\'//}]=$fix
+        asyncBash_msgs_in_queue=1
+    done
+    [[ $msg == empty ]] && ((asyncBash_empty_lines++))
 }
 
 #delete a/all msg to not show it again below the PS1
@@ -160,7 +175,8 @@ asyncBash_del_msg_below_ps1() {
     if ((id>=0)); then
         msg=${asyncBash_msgs_below_ps1_order[$id]}
         unset -v asyncBash_msgs_below_ps1_order[$id]
-        unset -v asyncBash_msgs_below_ps1["$msg"] 
+        #remove escape characters and delete it
+        unset -v asyncBash_msgs_below_ps1["${msg/\'//}"] 
     else
         asyncBash_msgs_below_ps1_order=()
         asyncBash_msgs_below_ps1=()
@@ -176,15 +192,21 @@ asyncBash_show_msgs_below_ps1() {
     local msg=
     local -i found=0
     local -i id=0
+    local pager_output=
 
     #if messages in queue
     if ((asyncBash_msgs_in_queue)); then 
+        #disable line wrapping (to control real $lines_displayed)
+        tput rmam
         #leave an empty line below the ps1
         tput cud1
         #number of messages displayed below ps1
         local -i lines_displayed=$(( ${#asyncBash_msgs_below_ps1[@]} + 1 )) #add the leaved empty line (see above)
         #calculate final row
         local -i final_row=$(($asyncBash_consolerow + $lines_displayed)) 
+        # lines displayed + cli + prompt + possible ctrl-q message + empty lines
+        local -i real_output=$(( $lines_displayed + 1 + $asyncBash_prompt_command_lines + 1 + $asyncBash_empty_lines))
+
 
         #for each message
         for id in ${!asyncBash_msgs_below_ps1_order[@]}; do
@@ -197,32 +219,45 @@ asyncBash_show_msgs_below_ps1() {
             # in the queue for the next possible call
             [[ $fix == no ]] && asyncBash_del_msg_below_ps1 $id || found=1
             [[ $msg == empty ]] && msg=
-            #force scroll
-            tput cud1
-            #clean the line 
-            tput el
             #print the msg (should the msg be cleaned after x seconds?)
-            echo -n "$msg"
+            if (( $real_output > $max_rows )); then
+                pager_output+="$msg\n"
+            else
+                #force scroll
+                tput cud1
+                #clean the line 
+                tput el
+                echo -nE "$msg"
+            fi
         done
 
-        #leave the cursor just 1 line above the cli (no prompt_command execution at this time)
-        local -i old_row=$(($asyncBash_consolerow - 1)) 
+        if (( $real_output > $max_rows )); then
+            # pipe and not redirect to escape characters in bash before
+            echo -e $pager_output | $PAGER
+            #go up 1 line
+            tput cuu1
+        else # no pager needed :)
+            #leave the cursor just 1 line above the cli (no prompt_command execution at this time)
+            local -i old_row=$(($asyncBash_consolerow - 1)) 
 
-        # the output doesn't need scrolling put the cursor where it was before the output
-        if (( $final_row <= $max_rows )); then
-            # sleep 2 # (uncomment to debug) ;)
-            tput cup $old_row 0
-            # sleep 2 # (uncomment to debug) ;)
-        else # the terminal needs to do scrolling to show the output
-            #sleep 2 # (uncomment to debug) ;)
-            local -i diff=$(( $final_row - $max_rows ))
-            tput cup $(($old_row - $diff)) 0
-            #adjust real position for chained calls
-            ((asyncBash_consolerow-=diff))
-            #sleep 2 # (uncomment to debug) ;)
+            # the output doesn't need scrolling put the cursor where it was before the output
+            if (( $final_row <= $max_rows )); then
+                #sleep 2 # (uncomment to debug) ;)
+                tput cup $old_row 0
+                #sleep 2 # (uncomment to debug) ;)
+            else # the terminal needs to do scrolling to show the output
+                #sleep 2 # (uncomment to debug) ;)
+                local -i diff=$(( $final_row - $max_rows ))
+                tput cup $(($old_row - $diff)) 0
+                #adjust real position for chained calls
+                ((asyncBash_consolerow-=diff))
+                #sleep 2 # (uncomment to debug) ;)
+            fi
         fi
         #set flag queue
         asyncBash_msgs_in_queue=$found
+        #enable line wrapping
+        tput smam
     fi
 }
 
