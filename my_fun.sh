@@ -49,8 +49,8 @@ bind -x '"\C-gb5": edit_command_hint 0'
 #Create/edit a cheatsheet for the last command
 bind -x '"\C-gb6": edit_command_hint 1'
 
-#Test for newlines on the bottom
-bind -x '"\C-gb7": go_down'
+#Execute current command without moving
+bind -x '"\C-gb7": run_current_cli'
 
 ########################
 #  User defined hooks  #
@@ -77,18 +77,24 @@ asyncBash_on_hook()   {
 #  Functions  #
 ###############
 
-go_down(){
+#Execute current command and show output below the ps1
+# with error in red
+# execute multiple commands
+run_current_cli() {
+    [[ -z $asyncBash_current_cmd_line ]] && return
     #Clean possible previous asyncBash calls
-    local -a cmda=($asyncBash_current_cmd_line "funciona")
     asyncBash_clean_screen_msgs
-    asyncBash_add_msg_below_ps1 "go downs 0" 
-    asyncBash_add_msg_below_ps1 "go downs 1" 
-    asyncBash_add_msg_below_ps1 "go downs 2" 
-    asyncBash_add_msg_below_ps1 "go downs 3" 
-    asyncBash_add_msg_below_ps1 "go downs 4" 
-    asyncBash_add_msg_below_ps1 "go downs 5" 
+    local line=
+    local com=("$asyncBash_current_cmd_line")
+
+    while IFS= read -r line
+    do
+        asyncBash_add_msg_below_ps1 "$line"
+    # show errors in red
+    done < <("${com[@]}" 2> >(while read line; do echo -e "\e[01;31m$line\e[0m" ; done))
+
     #Substitute history line
-    asyncBash_substitute_command_line "${cmda[@]:-1}"
+    asyncBash_substitute_command_line "${asyncBash_current_cmd_line}"
 }
 
 
@@ -270,7 +276,7 @@ search_substring_history(){
     #not active search
     if [[ -z $currentSearchArg ]]; then
         #delete all previous messages and clean the screen
-        asyncBash_del_msg_below_ps1 -1
+        asyncBash_del_msg_below_ps1 0
         #reset 
         arrayhistory=()
         #get last argument

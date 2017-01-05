@@ -158,31 +158,53 @@ asyncBash_add_msg_below_ps1() {
     local msg_cut=""
     
     for start in $(eval echo {0..$end..$step}); do
+        #cut 
         msg_cut=${msg:$start:$step}
-        asyncBash_msgs_below_ps1_order+=("$msg_cut")
-        #remove escape characters and save it
-        asyncBash_msgs_below_ps1[${msg_cut/\'//}]=$fix
+        #if no msg left default to empty
+        [[ -z $msg_cut ]] && msg_cut=empty
+        asyncBash_msgs_below_ps1_order+=("${msg_cut}")
+        asyncBash_msgs_below_ps1["${msg_cut}"]=$fix  
         asyncBash_msgs_in_queue=1
     done
+    #increment empty lines to know the total lines of the output (emptied + filled)
     [[ $msg == empty ]] && ((asyncBash_empty_lines++))
 }
 
 #delete a/all msg to not show it again below the PS1
 #pass -1 to delete all and clean screen below PS1
+#pass 1 to delete just one
+#pass 0 to delete all less fixed (workaround due bug in unset)
 asyncBash_del_msg_below_ps1() {
-    local -i id=$1
-    local msg=
-    if ((id>=0)); then
-        msg=${asyncBash_msgs_below_ps1_order[$id]}
-        unset -v asyncBash_msgs_below_ps1_order[$id]
-        #remove escape characters and delete it
-        unset -v asyncBash_msgs_below_ps1["${msg/\'//}"] 
+    local -i arg=$1
+    local clean=${2:-yes}
+    local msg= 
+    local -a temp=()
+
+    if ((arg)); then
+        ## bug: needs reporting
+        ## crash/dont remove if msg contains any ',^,\...
+        #unset -v asyncBash_msgs_below_ps1["${msg}"] 
+        # works
+        #unset -v asyncBash_msgs_below_ps1_order[$id]
+
+        for key in "${!asyncBash_msgs_below_ps1[@]}"; do
+            [[ ${asyncBash_msgs_below_ps1["$key"]}  == yes ]] && temp+=("$key")
+        done
+
+        #reset
+        asyncBash_msgs_below_ps1_order=()
+        asyncBash_msgs_below_ps1=()
+        asyncBash_msgs_in_queue=0
+        #add fixed messages
+        for msg in "${temp[@]}" ; do
+            asyncBash_add_msg_below_ps1 "$msg"
+        done
     else
         asyncBash_msgs_below_ps1_order=()
         asyncBash_msgs_below_ps1=()
         asyncBash_msgs_in_queue=0
         #clean screen below PS1
-        tput ed
+        [[ $clean == yes ]] && tput ed
     fi
 }
 
@@ -190,7 +212,7 @@ asyncBash_del_msg_below_ps1() {
 asyncBash_show_msgs_below_ps1() {
     local fix=
     local msg=
-    local -i found=0
+    local -i found_fixed=0
     local -i id=0
     local pager_output=
 
@@ -217,7 +239,7 @@ asyncBash_show_msgs_below_ps1() {
             #if temporal not show again (delete it)
             #otherwise dont delete it and mark messages 
             # in the queue for the next possible call
-            [[ $fix == no ]] && asyncBash_del_msg_below_ps1 $id || found=1
+            [[ $fix == yes ]] && found_fixed=1
             [[ $msg == empty ]] && msg=
             #print the msg (should the msg be cleaned after x seconds?)
             if (( $real_output > $max_rows )); then
@@ -227,7 +249,8 @@ asyncBash_show_msgs_below_ps1() {
                 tput cud1
                 #clean the line 
                 tput el
-                echo -nE "$msg"
+                #echo without interpret
+                echo -nE "${msg}"
             fi
         done
 
@@ -256,7 +279,9 @@ asyncBash_show_msgs_below_ps1() {
             fi
         fi
         #set flag queue
-        asyncBash_msgs_in_queue=$found
+        asyncBash_msgs_in_queue=$found_fixed
+        #delete all or not fixed messages without cleaning screen
+        asyncBash_del_msg_below_ps1 $found_fixed no
         #enable line wrapping
         tput smam
     fi
@@ -267,7 +292,7 @@ asyncBash_show_msgs_below_ps1() {
 asyncBash_clean_screen_msgs() {
     local msg=$1
     #delete all messages arrays and clean screen 
-    asyncBash_del_msg_below_ps1 -1
+    asyncBash_del_msg_below_ps1 0
     #unbind Ctrl-q 
     bind -r "\C-q"
     if [[ -n $msg ]]; then
