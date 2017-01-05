@@ -104,13 +104,6 @@ edit_command_hint() {
     (( $last )) && cmd=${cmda[-1]}  || cmd=${cmda[0]}
     local file="$HOME/.local/share/asyncBash/hints/$cmd.txt"
 
-    if [[ $cmd == hints  ]]; then
-        asyncBash_add_msg_below_ps1 "Can't edit $cmd command cause it's special" 
-        #Substitute history line
-        asyncBash_substitute_command_line "${cmda[@]:-1}"
-        return
-    fi
-
     if [[ -e $file  ]]; then
         #show a legend with the possible arguments
         asyncBash_add_msg_below_ps1 "editting the hint with $EDITOR" 
@@ -123,9 +116,10 @@ edit_command_hint() {
 }
 
 #Display a cheatsheet for the current command
-#from ~/.local/hints
+#from ~/.local/share/asyncBash/hints
+# if empty line then show all hints 
+# if a exact match is not found then show relatives
 show_command_hints() {
-    [[ -z $asyncBash_current_cmd_line ]] && return
     #Clean possible previous asyncBash calls
     asyncBash_clean_screen_msgs
     local -a cmda=($asyncBash_current_cmd_line)
@@ -133,10 +127,10 @@ show_command_hints() {
     local cmd=
     local keybin="Alt + e"
     if (( $last )); then
-        cmd=${cmda[-1]} 
+        [[ -n $asyncBash_current_cmd_line ]] && cmd=${cmda[-1]} 
         keybin=$keybin" + l"
     else
-        cmd=${cmda[0]}
+        [[ -n $asyncBash_current_cmd_line ]] && cmd=${cmda[0]} 
         keybin=$keybin" + f"
     fi
     local path="$HOME/.local/share/asyncBash/hints"
@@ -147,15 +141,7 @@ show_command_hints() {
     [[ ! -e $path ]] && mkdir -p $path
 
     #special argument to list all the hints
-    if [[ $cmd == hints  ]]; then
-        for file in $(shopt -s dotglob;echo "$path/"*.txt); do
-            file=${file##*/}; file=${file::-4}
-            ((i)) || asyncBash_add_msg_below_ps1 "Listing all hints (use dhint/$EDITOR to remove one):"  
-            ((i++))
-            [[ $file == '*' ]] && break #no luck
-            asyncBash_add_msg_below_ps1 "$i) $file"
-        done
-    elif [[ -e $file  ]]; then #exact match
+    if [[ -e $file  ]]; then #exact match
         bind -x '"\C-q": asyncBash_clean_screen_msgs'
         asyncBash_add_msg_below_ps1 "Enter Control-q to clean screen messages" yes
         while IFS= read -r line; do 
@@ -169,13 +155,20 @@ show_command_hints() {
         for file in $(shopt -s dotglob;echo "$path/$cmd"*.txt); do
             file=${file##*/}; file=${file::-4}
             [[ $file == $cmd'*' ]] && break #no luck
-            ((i)) || asyncBash_add_msg_below_ps1 "Exact match not found. Possible values are:"  
+            ((i)) || {
+            if [[ -n $asyncBash_current_cmd_line ]]; then 
+                asyncBash_add_msg_below_ps1 "Exact match not found. Possible values are:"  
+            else
+                asyncBash_add_msg_below_ps1 "Listing all hints:"  
+            fi
+        }
             ((i++))
             asyncBash_add_msg_below_ps1 "$i)${file}"
         done
     fi
 
     #Substitute history line
+    [[ -z $asyncBash_current_cmd_line ]] && cmda=("")
     asyncBash_substitute_command_line "${cmda[@]:-1}"
 }
 

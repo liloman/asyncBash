@@ -187,7 +187,7 @@ There is an obvious error we don't check for the file but the important is that 
 
 ```bash
 #Display a cheatsheet for the current command
-#from ~/.local/hints
+#from ~/.local/share/asyncBash/hints
 show_command_hints() {
     [[ -z $asyncBash_current_cmd_line ]] && return
     #Clean possible previous asyncBash calls
