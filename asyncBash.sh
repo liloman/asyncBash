@@ -233,6 +233,7 @@ asyncBash_show_msgs_below_ps1() {
 
         if (( $real_output > $max_rows )); then
             # pipe and not redirect to escape characters in bash before
+            [[ -z $PAGER ]] && PAGER=less
             echo -e $pager_output | $PAGER
             #go up 1 line
             tput cuu1
