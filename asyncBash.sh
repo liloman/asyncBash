@@ -171,9 +171,8 @@ asyncBash_add_msg_below_ps1() {
 }
 
 #delete a/all msg to not show it again below the PS1
-#pass -1 to delete all and clean screen below PS1
-#pass 1 to delete just one
-#pass 0 to delete all less fixed (workaround due bug in unset)
+#pass 0 to delete all and clean screen below PS1
+#pass 1 to delete all but fixed (workaround due bug in unset)
 asyncBash_del_msg_below_ps1() {
     local -i arg=$1
     local clean=${2:-yes}
@@ -197,7 +196,7 @@ asyncBash_del_msg_below_ps1() {
         asyncBash_msgs_in_queue=0
         #add fixed messages
         for msg in "${temp[@]}" ; do
-            asyncBash_add_msg_below_ps1 "$msg"
+            asyncBash_add_msg_below_ps1 "$msg" yes
         done
     else
         asyncBash_msgs_below_ps1_order=()
@@ -282,6 +281,7 @@ asyncBash_show_msgs_below_ps1() {
         asyncBash_msgs_in_queue=$found_fixed
         #delete all or not fixed messages without cleaning screen
         asyncBash_del_msg_below_ps1 $found_fixed no
+        # sleep 2
         #enable line wrapping
         tput smam
     fi
