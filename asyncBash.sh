@@ -21,6 +21,8 @@ declare -gi asyncBash_flag_on=0
 declare -gi max_rows=$(tput lines)
 #Number of empty lines in a msg
 declare -gi asyncBash_empty_lines=0
+#Array with temporal keybindings 
+declare -ga asyncBash_temporal_keybindings=()
 
 #Defined by user do not edit
 #Execute this when not an asyncBash call
@@ -39,6 +41,8 @@ asyncBash_hook() {
         asyncBash_save_current_row
         #clean possible previous msgs
         asyncBash_clean_screen_msgs
+        #Delete temporal keybindings
+        asyncBash_remove_temporal_keybinds
         #Call user defined cleanning function
         asyncBash_after_out
     else #it's in a asyncBash call so restore prompt position
@@ -89,6 +93,32 @@ asyncBash_set_keys() {
     bind -f "${BASH_SOURCE%/*}/asyncBash.inputrc"
 }
 
+#Delete temporal keybindings
+asyncBash_remove_temporal_keybinds() {
+    local -i i=0
+    for key in "${asyncBash_temporal_keybindings[@]}"; do
+        bind -r $key
+        bind -r "\C-gt$i"
+        ((i++))
+    done
+    asyncBash_temporal_keybindings=()
+}
+
+#Create a keybind during the duration of the asyncBash
+# $1: keybind
+# $2: shell function to call
+# $3: 1º shell function argument
+asyncBash_create_temporal_keybind() {
+    local keybind=$1
+    local fun=$2
+    local arg=$3
+
+    #fun and arg need to be separated with that space ¿?
+    #i can't get it to work with just 1 argument (must be something related to expansion when spaces)
+    bind -x <<< echo '"\C-gt'${#asyncBash_temporal_keybindings[@]}'": '$fun' '$arg''
+    bind <<< echo "\"$keybind\": \"\C-gs\C-gt${#asyncBash_temporal_keybindings[@]}\C-ge\C-e\"" 
+    asyncBash_temporal_keybindings+=("$keybind")
+}
 
 #Substitute last command with $1
 asyncBash_substitute_command_line() {
@@ -217,6 +247,8 @@ asyncBash_show_msgs_below_ps1() {
 
     #if messages in queue
     if ((asyncBash_msgs_in_queue)); then 
+        #disable glob expansion
+        set -f
         #disable line wrapping (to control real $lines_displayed)
         tput rmam
         #leave an empty line below the ps1
@@ -281,9 +313,10 @@ asyncBash_show_msgs_below_ps1() {
         asyncBash_msgs_in_queue=$found_fixed
         #delete all or not fixed messages without cleaning screen
         asyncBash_del_msg_below_ps1 $found_fixed no
-        # sleep 2
         #enable line wrapping
         tput smam
+        #enable glob expansion
+        set +f
     fi
 }
 
@@ -293,8 +326,7 @@ asyncBash_clean_screen_msgs() {
     local msg=$1
     #delete all messages arrays and clean screen 
     asyncBash_del_msg_below_ps1 0
-    #unbind Ctrl-q 
-    bind -r "\C-q"
+
     if [[ -n $msg ]]; then
         asyncBash_add_msg_below_ps1 "$msg"
         asyncBash_show_msgs_below_ps1

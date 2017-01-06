@@ -19,6 +19,7 @@ declare -gi prev_historyid=0
 #For search_substring_history functions
 #Hold the result of the substring search
 declare -ga arrayhistory
+declare -ga arrayhistory_info
 #Current position on arrayhistory
 declare -gi currentSearchIdx=0
 #Current substring searched for
@@ -52,6 +53,7 @@ bind -x '"\C-gb6": edit_command_hint 1'
 #Execute current command without moving
 bind -x '"\C-gb7": run_current_cli'
 
+
 ########################
 #  User defined hooks  #
 ########################
@@ -61,6 +63,9 @@ asyncBash_after_out() {
     #reset substring history search if user forget enter Ctl-q to reset search
     currentSearchArg=
     currentSearchIdx=0
+    #bug: unbind Ctrl-q  (doesn't work) bind -X :(
+    # bind -r "\C-q"
+    bind -x '"\C-q": ""'
 }
 
 #Execute this when in an asyncBash call
@@ -258,13 +263,25 @@ clean_substring_search() {
     currentSearchIdx=0
 }
 
+#For gg/G keybindings
+search_substring_history_first() { 
+    currentSearchIdx=$((${#arrayhistory[@]}-1))
+    search_substring_history backward first
+}
+
+search_substring_history_last() { 
+    currentSearchIdx=0
+    search_substring_history forward last
+}
+
 #Search forward/backward for a substring in the history and return it to the command line
 #It doesn't work right with arguments with spaces "dir with spaces"
 #More than enough for me use case
-search_substring_history(){
+search_substring_history() {
     [[ -z $asyncBash_current_cmd_line ]] && return
     bind -x '"\C-q": clean_substring_search'
     local way=$1
+    local move=$2
     local -a cmda=($asyncBash_current_cmd_line)
     #get last argument index
     local idx=$((${#cmda[@]}-1))
@@ -279,51 +296,81 @@ search_substring_history(){
         asyncBash_del_msg_below_ps1 0
         #reset 
         arrayhistory=()
+        arrayhistory_info=()
         #get last argument
         arg=${cmda[$idx]}
+
+        #Clean possible previous asyncBash calls
+        asyncBash_clean_screen_msgs
         echo -n "Indexing...Hold your horses"
         #load search in arrayhistory
         while IFS= read -r lines;
         do
-            readarray -t line <<<"$lines"
-            #command contains 
-            if [[ ${line[@]} == *$arg* ]]; then
+            #readarray doesn't work here? bug?
+            read -a line <<<"${lines}"
+            #command contains without the historyid
+            if [[ ${line[@]:1} == *$arg* ]]; then
                 #command arg contains
-                for elem in ${line[@]}; do 
+                for elem in ${line[@]:1}; do 
                     if [[ $elem == *$arg* ]]; then
                         #unique elements, so you must do "exhaustive" 
                         for hay in ${!arrayhistory[@]} ; do
                             [[ ${arrayhistory[$hay]} == $elem ]] && found=1
                         done
-                        ((!found)) && arrayhistory+=("$elem") 
+                        if ((!found)); then
+                            arrayhistory+=("$elem") 
+                            arrayhistory_info+=("${line[0]}") 
+                        fi
                         found=0
                     fi
                 done
             fi
-        done < <(fc -nlr 1)
+        done < <(fc -lr 1) # histfilesize must be <= histsize otherwise "out of range"
         #Clean indexing msg
         tput hpa 0 #move to column 0
         tput el #clean the from cursor to end of line
 
-        asyncBash_add_msg_below_ps1  "Enter Control-q to reset search" yes
+        asyncBash_add_msg_below_ps1  "Enter Control-q to reset your search ($arg)" yes
+        asyncBash_add_msg_below_ps1  "Enter gg to go to first result, G to go to the last result" yes
+        asyncBash_create_temporal_keybind "G" "search_substring_history_first"
+        asyncBash_create_temporal_keybind "gg" "search_substring_history_last"
+
         #and set the global values
         currentSearchArg=$arg
         currentSearchIdx=0
-    else #active search
-        if [[ $way == backward ]];then
-            if (( currentSearchIdx < $(( ${#arrayhistory[@]}-1 )) )); then
-                ((currentSearchIdx++))
-            else
-            end=1
+        if ((! ${#arrayhistory[@]} )); then
+            asyncBash_add_msg_below_ps1  "Nothing found!.Try harder :)"
         fi
-    else #forward
-        if (( currentSearchIdx > 0 )); then
-            ((currentSearchIdx--))
-        else
-        end=1
-    fi
-fi
-    fi
+    else #active search order by time, so backward is further in time (ctl + r)
+        if [[ $way == backward ]];then
+                if (( currentSearchIdx < $(( ${#arrayhistory[@]}-1 )) )); then
+                    ((currentSearchIdx++))
+                else
+                    [[ -n $move ]] && { unset 'cmda[${#cmda[@]}-1]'; cmda+=("${arrayhistory[$currentSearchIdx]}"); }
+                    end=1
+                fi
+        else #forward search
+                if (( currentSearchIdx > 0 )); then
+                    ((currentSearchIdx--))
+                else
+                    [[ -n $move ]] && { unset 'cmda[${#cmda[@]}-1]'; cmda+=("${arrayhistory[$currentSearchIdx]}"); }
+                    end=1
+                fi
+        fi #end  forward search
+
+   fi # end active search
+
+   if (( ${#arrayhistory[@]} )); then
+       local msg1="Position:[$((currentSearchIdx+1))/${#arrayhistory[@]}] --> " 
+       local msg2=" Historyid:${arrayhistory_info[$currentSearchIdx]}" 
+       # unfortunetly no other than the n00b way
+       local history_line=$(HISTTIMEFORMAT='%c|' history | grep "^[[:space:]]*${arrayhistory_info[$currentSearchIdx]} ") 
+       local temp=(${history_line%|*})
+       local date=${temp[@]:1}
+       local hcmd=${history_line##*|}
+       asyncBash_add_msg_below_ps1 "$msg1 $msg2 Date:$date"
+       asyncBash_add_msg_below_ps1 "Complete command line:${hcmd}"
+   fi
 
     if ((!end)); then
         arg=${arrayhistory[$currentSearchIdx]}

@@ -29,6 +29,8 @@ Control-r: "\C-gs\C-gb1\C-ge\C-e"
 # forward
 Control-s: "\C-gs\C-gb2\C-ge\C-e"
 
+
+# Use Ctrl + v to see the keybindings
 #\e is Alt/M- for keybindings 
 #\C- is Ctl 
 
