@@ -37,7 +37,7 @@ declare -ga asyncBash_output_text
 #Array with the associated values of the output
 declare -ga asyncBash_output_value
 #Current output index position
-declare -gi asyncBash_output_index=0
+declare -gi asyncBash_output_index=-1
 
 ###########
 #  input  #
@@ -77,10 +77,15 @@ asyncBash:Hook() {
     if ((!asyncBash_flag_on)); then
         #save current console row to restore it 
         asyncBash:Save_Current_Row
-        #clean possible previous msgs
-        asyncBash:Clean_Screen_Below_PS1
-        #Delete temporal keybindings
-        asyncBash:Remove_Temporal_Keybindings
+        # if the previous call was an asyncBash 
+        if [[ -n $asyncBash_input_functionname ]]; then
+            #clean possible previous msgs
+            asyncBash:Clean_Screen_Below_PS1
+            #Delete temporal keybindings
+            asyncBash:Remove_Temporal_Keybindings
+            #Reset all output/input
+            asyncBash:Reset_Input_Output
+        fi
         #Call user defined cleanning function
         asyncBash:Before_Not_AsyncBash_Call
     else #it's in a asyncBash call so restore prompt position
@@ -98,6 +103,16 @@ asyncBash:Hook() {
     asyncBash_flag_on=0
 }
 
+#Reset input output
+asyncBash:Reset_Input_Output() {
+    #reset output values
+    asyncBash_output_text=
+    asyncBash_output_value=()
+    asyncBash_output_index=-1
+    #reset input values
+    asyncBash_input_functionname=
+    asyncBash_input_argument=
+}
 
 #set asyncBash_historyid,asyncBash_current_cmd_line and reset asyncBash_flag_on
 asyncBash:Set_Env() {
@@ -131,15 +146,22 @@ asyncBash:Set_Keys() {
     bind -f "${BASH_SOURCE%/*}/asyncBash.inputrc"
 }
 
-#Delete temporal keybindings
+#Delete all temporal keybindings
 asyncBash:Remove_Temporal_Keybindings() {
     local -i i=0
     for key in "${asyncBash_temporal_keybindings[@]}"; do
+        #remove the user keybind
         bind -r $key
+        #remove the associated keybind
         bind -r "\C-gt$i"
         ((i++))
     done
     asyncBash_temporal_keybindings=()
+
+    #Unbind possible C-q
+    #bug: doesn't work. see bind -X :(
+    #bind -r "\C-q"
+    bind -x '"\C-q": ""'
 }
 
 #Create a keybind during the duration of the asyncBash
@@ -247,7 +269,8 @@ asyncBash:Del_Messages_Below_PS1() {
     local msg= 
     local -a temp=()
 
-    if ((arg)); then
+    #if delete not fixed messages
+    if ((arg)); then 
         ## bug: needs reporting
         ## crash/dont remove if msg contains any ',^,\...
         #unset -v asyncBash_msgs_below_ps1["${msg}"] 
@@ -266,7 +289,7 @@ asyncBash:Del_Messages_Below_PS1() {
         for msg in "${temp[@]}" ; do
             asyncBash:Add_Msg_Below_PS1 "$msg" yes
         done
-    else
+    else #delete all 
         asyncBash_msgs_below_ps1_order=()
         asyncBash_msgs_below_ps1=()
         asyncBash_msgs_in_queue=0
@@ -287,16 +310,18 @@ asyncBash:Show_Msg_Below_PS1() {
     if ((asyncBash_msgs_in_queue)); then 
         #disable glob expansion
         set -f
-        #disable line wrapping (to control real $lines_displayed)
-        tput rmam
-        #leave an empty line below the ps1
-        tput cud1
+        # disable line wrapping (to control real $lines_displayed)
+        # ,current line,clean the screen below
+        tput -S <<< $(echo -e "rmam\nel\ned")
         #number of messages displayed below ps1
         local -i lines_displayed=$(( ${#asyncBash_msgs_below_ps1[@]} + 1 )) #add the leaved empty line (see above)
         #calculate final row
         local -i final_row=$(($asyncBash_consolerow + $lines_displayed)) 
         # lines displayed + cli + prompt + possible ctrl-q message + empty lines
         local -i real_output=$(( $lines_displayed + 1 + $asyncBash_prompt_command_lines + 1 + $asyncBash_empty_lines))
+        #leave an empty line below the ps1
+        echo ""
+        tput cud1
 
 
         #for each message
@@ -314,31 +339,29 @@ asyncBash:Show_Msg_Below_PS1() {
             if (( $real_output > $asyncBash_terminal_rows )); then
                 pager_output+="$msg\n"
             else
-                #force scroll
-                tput cud1
-                #clean the line 
-                tput el
                 #echo without interpret
-                echo -nE "${msg}"
+                echo -E "${msg}"
             fi
         done
 
+        #set the cursor back where it was
+        #if the output is greather the current terminal rows use a $PAGER
         if (( $real_output > $asyncBash_terminal_rows )); then
             # pipe and not redirect to escape characters in bash before
             [[ -z $PAGER ]] && PAGER=less
             echo -e $pager_output | $PAGER
-            #go up 1 line
-            tput cuu1
+            #go up 2 line2
+            tput cuu 2
         else # no pager needed :)
             #leave the cursor just 1 line above the cli (no prompt_command execution at this time)
             local -i old_row=$(($asyncBash_consolerow - 1)) 
 
-            # the output doesn't need scrolling put the cursor where it was before the output
+            # the output didn't need scrolling put the cursor where it was before the output
             if (( $final_row <= $asyncBash_terminal_rows )); then
                 #sleep 2 # (uncomment to debug) ;)
                 tput cup $old_row 0
                 #sleep 2 # (uncomment to debug) ;)
-            else # the terminal needs to do scrolling to show the output
+            else # the terminal needed scrolling to show the output
                 #sleep 2 # (uncomment to debug) ;)
                 local -i diff=$(( $final_row - $asyncBash_terminal_rows ))
                 tput cup $(($old_row - $diff)) 0

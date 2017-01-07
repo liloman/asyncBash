@@ -17,14 +17,15 @@ declare -gi cmdnumber=0
 declare -gi prev_historyid=0
 
 
-###########
-#  BINDS  #
-###########
+
+#################################
+#  BINDS for asyncBash.inputrc  #
+#################################
 
 #Bind to insert relative command  number
 #positive number for current session
 # <=0 for older sessions ;)
-bind -x '"\C-gr":insert_relative_command_number'
+bind -x '"\C-gb0":insert_relative_command_number'
 
 # Search for a substring *argument* into history 
 # c-n dynamic-complete-history on steroids 
@@ -51,14 +52,7 @@ bind -x '"\C-gb7": run_current_cli'
 ########################
 
 #Execute this when not an asyncBash call
-asyncBash:Before_Not_AsyncBash_Call() {
-    #reset substring history search if user forget enter Ctl-q to reset search
-    asyncBash_input_argument=
-    asyncBash_output_index=0
-    #bug: unbind Ctrl-q  (doesn't work) bind -X :(
-    # bind -r "\C-q"
-    bind -x '"\C-q": ""'
-}
+asyncBash:Before_Not_AsyncBash_Call() { :; }
 
 #Execute this when in an asyncBash call
 asyncBash:Before_AsyncBash_Call() { :; }
@@ -79,10 +73,11 @@ asyncBash:After_Any_Call()   {
 # execute multiple commands
 run_current_cli() {
     [[ -z $asyncBash_current_cmd_line ]] && return
+    asyncBash_input_functionname=$FUNCNAME
     #Clean possible previous asyncBash calls
     asyncBash:Clean_Screen_Below_PS1
     local line=
-    local com=("$asyncBash_current_cmd_line")
+    local com=($asyncBash_current_cmd_line)
 
     while IFS= read -r line
     do
@@ -99,6 +94,7 @@ run_current_cli() {
 #from ~/.local/share/asyncBash/hints
 edit_command_hint() {
     [[ -z $asyncBash_current_cmd_line ]] && return
+    asyncBash_input_functionname=$FUNCNAME
     #Clean possible previous asyncBash calls
     asyncBash:Clean_Screen_Below_PS1
     local -a cmda=($asyncBash_current_cmd_line)
@@ -122,6 +118,7 @@ edit_command_hint() {
 #Autocomplete
 autocomplete_hints() {
     [[ -z $asyncBash_current_cmd_line ]] && return
+    asyncBash_input_functionname=$FUNCNAME
 
     local -a cmda=($asyncBash_current_cmd_line)
     #modify last argument = autocomplete :)
@@ -143,6 +140,7 @@ autocomplete_hints() {
 # if empty line then show all hints 
 # if a exact match is not found then show relatives
 show_command_hints() {
+    asyncBash_input_functionname=$FUNCNAME
     #Clean possible previous asyncBash calls
     asyncBash:Clean_Screen_Below_PS1
     local -a cmda=($asyncBash_current_cmd_line)
@@ -179,7 +177,7 @@ show_command_hints() {
 
         #Reset possibles prev searches
         asyncBash_output_text=()
-        asyncBash_output_index=0
+        asyncBash_output_index=-1
 
         for file in $(shopt -s dotglob;echo "$path/$cmd"*.txt); do
             file=${file##*/}; file=${file::-4}
@@ -219,6 +217,7 @@ set_cmd_number() {
 #Insert the relative command number from the actual
 insert_relative_command_number() {
     [[ -z $asyncBash_current_cmd_line ]] && return
+    asyncBash_input_functionname=$FUNCNAME
     #Show a legend below prompt with the arguments of a relative command number
     show_relative_command_number_args() {
         #get history id
@@ -279,7 +278,7 @@ clean_substring_search() {
     asyncBash:Clean_Screen_Below_PS1 "Search substring was reset"
     #reset substring history search
     asyncBash_input_argument=
-    asyncBash_output_index=0
+    asyncBash_output_index=-1
 }
 
 #For gg/G keybindings
@@ -298,6 +297,7 @@ search_substring_history_last() {
 #More than enough for me use case
 search_substring_history() {
     [[ -z $asyncBash_current_cmd_line ]] && return
+    asyncBash_input_functionname=$FUNCNAME
     bind -x '"\C-q": clean_substring_search'
     local way=$1
     local move=$2
@@ -312,7 +312,7 @@ search_substring_history() {
     #not active search
     if [[ -z $asyncBash_input_argument ]]; then
         #delete all previous messages and clean the screen
-        asyncBash_del_msg_below_ps1 0
+        asyncBash:Del_Messages_Below_PS1 0
         #reset 
         asyncBash_output_text=()
         asyncBash_output_value=()
