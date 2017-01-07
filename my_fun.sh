@@ -16,14 +16,6 @@ declare -gi cmdnumber=0
 #Current arrayhistory index position
 declare -gi prev_historyid=0
 
-#For search_substring_history functions
-#Hold the result of the substring search
-declare -ga arrayhistory
-declare -ga arrayhistory_info
-#Current position on arrayhistory
-declare -gi currentSearchIdx=0
-#Current substring searched for
-declare -g  currentSearchArg=
 
 ###########
 #  BINDS  #
@@ -59,20 +51,20 @@ bind -x '"\C-gb7": run_current_cli'
 ########################
 
 #Execute this when not an asyncBash call
-asyncBash_after_out() {
+asyncBash:Before_Not_AsyncBash_Call() {
     #reset substring history search if user forget enter Ctl-q to reset search
-    currentSearchArg=
-    currentSearchIdx=0
+    asyncBash_input_argument=
+    asyncBash_output_index=0
     #bug: unbind Ctrl-q  (doesn't work) bind -X :(
     # bind -r "\C-q"
     bind -x '"\C-q": ""'
 }
 
 #Execute this when in an asyncBash call
-asyncBash_before_in() { :; }
+asyncBash:Before_AsyncBash_Call() { :; }
 
 #Execute this after any command
-asyncBash_on_hook()   { 
+asyncBash:After_Any_Call()   { 
     #set cmdnumber 
     set_cmd_number
 }
@@ -88,18 +80,18 @@ asyncBash_on_hook()   {
 run_current_cli() {
     [[ -z $asyncBash_current_cmd_line ]] && return
     #Clean possible previous asyncBash calls
-    asyncBash_clean_screen_msgs
+    asyncBash:Clean_Screen_Below_PS1
     local line=
     local com=("$asyncBash_current_cmd_line")
 
     while IFS= read -r line
     do
-        asyncBash_add_msg_below_ps1 "$line"
+        asyncBash:Add_Msg_Below_PS1 "$line"
     # show errors in red
     done < <("${com[@]}" 2> >(while read line; do echo -e "\e[01;31m$line\e[0m" ; done))
 
     #Substitute history line
-    asyncBash_substitute_command_line "${asyncBash_current_cmd_line}"
+    asyncBash:Substitute_Command_Line "${asyncBash_current_cmd_line}"
 }
 
 
@@ -108,7 +100,7 @@ run_current_cli() {
 edit_command_hint() {
     [[ -z $asyncBash_current_cmd_line ]] && return
     #Clean possible previous asyncBash calls
-    asyncBash_clean_screen_msgs
+    asyncBash:Clean_Screen_Below_PS1
     local -a cmda=($asyncBash_current_cmd_line)
     local last=$1
     local cmd=
@@ -117,13 +109,33 @@ edit_command_hint() {
 
     if [[ -e $file  ]]; then
         #show a legend with the possible arguments
-        asyncBash_add_msg_below_ps1 "editting the hint with $EDITOR" 
+        asyncBash:Add_Msg_Below_PS1 "editting the hint with $EDITOR" 
     else
-        asyncBash_add_msg_below_ps1 "created a new file and editting it with $EDITOR" 
+        asyncBash:Add_Msg_Below_PS1 "created a new file and editting it with $EDITOR" 
     fi
     $EDITOR $file
     #Substitute history line
-    asyncBash_substitute_command_line "${cmda[@]:-1}"
+    asyncBash:Substitute_Command_Line "${cmda[@]:-1}"
+}
+
+
+#Autocomplete
+autocomplete_hints() {
+    [[ -z $asyncBash_current_cmd_line ]] && return
+
+    local -a cmda=($asyncBash_current_cmd_line)
+    #modify last argument = autocomplete :)
+    cmda[-1]=${asyncBash_output_text[$asyncBash_output_index]}
+
+    #cycle between results
+    if (( $asyncBash_output_index + 1 >= ${#asyncBash_output_text[@]} )); then
+        asyncBash_output_index=0
+    else
+        (( asyncBash_output_index++ ))
+    fi
+
+    #Substitute history line
+    asyncBash:Substitute_Command_Line "${cmda[@]}"
 }
 
 #Display a cheatsheet for the current command
@@ -132,7 +144,7 @@ edit_command_hint() {
 # if a exact match is not found then show relatives
 show_command_hints() {
     #Clean possible previous asyncBash calls
-    asyncBash_clean_screen_msgs
+    asyncBash:Clean_Screen_Below_PS1
     local -a cmda=($asyncBash_current_cmd_line)
     local last=$1
     local cmd=
@@ -153,34 +165,41 @@ show_command_hints() {
 
     #special argument to list all the hints
     if [[ -e $file  ]]; then #exact match
-        bind -x '"\C-q": asyncBash_clean_screen_msgs'
-        asyncBash_add_msg_below_ps1 "Enter Control-q to clean screen messages" yes
+        bind -x '"\C-q": asyncBash:Clean_Screen_Below_PS1'
+        asyncBash:Add_Msg_Below_PS1 "Enter Control-q to clean screen messages" yes
         while IFS= read -r line; do 
-            asyncBash_add_msg_below_ps1 "$line"
+            asyncBash:Add_Msg_Below_PS1 "$line"
         done < $file
     else #don't found suggest similar hints
-        bind -x '"\C-q": asyncBash_clean_screen_msgs'
-        asyncBash_add_msg_below_ps1 "Enter Control-q to clean screen messages" yes
-        asyncBash_add_msg_below_ps1 "You can created a new file or edit it with $EDITOR with $keybin" 
+        bind -x '"\C-q": asyncBash:Clean_Screen_Below_PS1'
+        asyncBash:Add_Msg_Below_PS1 "Enter Control-q to clean screen messages" yes
+        asyncBash:Add_Msg_Below_PS1 "You can created a new file or edit it with $EDITOR with $keybin"  yes
+        asyncBash:Add_Msg_Below_PS1 "Enter Alt-a to autcomplete hints" yes
+        asyncBash:Create_Temporal_Keybinding "\ea" "autocomplete_hints"
+
+        #Reset possibles prev searches
+        asyncBash_output_text=()
+        asyncBash_output_index=0
 
         for file in $(shopt -s dotglob;echo "$path/$cmd"*.txt); do
             file=${file##*/}; file=${file::-4}
             [[ $file == $cmd'*' ]] && break #no luck
             ((i)) || {
             if [[ -n $asyncBash_current_cmd_line ]]; then 
-                asyncBash_add_msg_below_ps1 "Exact match not found. Possible values are:"  
+                asyncBash:Add_Msg_Below_PS1 "Exact match not found. Possible values are:"yes
             else
-                asyncBash_add_msg_below_ps1 "Listing all hints:"  
+                asyncBash:Add_Msg_Below_PS1 "Listing all hints:" yes 
             fi
         }
             ((i++))
-            asyncBash_add_msg_below_ps1 "$i)${file}"
+            asyncBash:Add_Msg_Below_PS1 "$i)${file}" yes
+            asyncBash_output_text+=("$file")
         done
     fi
 
     #Substitute history line
     [[ -z $asyncBash_current_cmd_line ]] && cmda=("")
-    asyncBash_substitute_command_line "${cmda[@]:-1}"
+    asyncBash:Substitute_Command_Line "${cmda[@]:-1}"
 }
 
 #1.Bash doesn't get into account of histcontrol and histignore with \#
@@ -214,10 +233,10 @@ insert_relative_command_number() {
             ((idx>0)) && args+=" ${hista[$idx]} "
         done
 
-        asyncBash_add_msg_below_ps1 "$msg  $args"
+        asyncBash:Add_Msg_Below_PS1 "$msg  $args"
     }
     #Clean possible previous asyncBash calls
-    asyncBash_clean_screen_msgs
+    asyncBash:Clean_Screen_Below_PS1
     local -a cmda=($asyncBash_current_cmd_line)
     #get last argument index
     local idx=$((${#cmda[@]}-1))
@@ -226,9 +245,9 @@ insert_relative_command_number() {
     local dest=
 
     if [[ ! $arg =~ ^-?[0-9]+([0-9]+)?$ ]]; then
-        asyncBash_add_msg_below_ps1 "error:$arg is not a number"
+        asyncBash:Add_Msg_Below_PS1 "error:$arg is not a number"
         #Substitute history line
-        asyncBash_substitute_command_line "${asyncBash_current_cmd_line}"
+        asyncBash:Substitute_Command_Line "${asyncBash_current_cmd_line}"
         return
     fi
     #substract the current command number with the destiny (last argument)
@@ -236,41 +255,41 @@ insert_relative_command_number() {
     if (( cmdnumber > arg )); then
         dest=!-$((cmdnumber - arg)): 
         #do not tamper with shopt -s histverify
-        asyncBash_add_msg_below_ps1 "empty" 
+        asyncBash:Add_Msg_Below_PS1 "empty" 
         #hook Ctrl-q to clean the messages without a msg
-        bind -x '"\C-q": asyncBash_clean_screen_msgs'
+        bind -x '"\C-q": asyncBash:Clean_Screen_Below_PS1'
         #show a legend with the possible arguments
-        asyncBash_add_msg_below_ps1 "Enter Control-q to clean screen messages" yes
-        asyncBash_add_msg_below_ps1 "Possible values for $arg:" 
+        asyncBash:Add_Msg_Below_PS1 "Enter Control-q to clean screen messages" yes
+        asyncBash:Add_Msg_Below_PS1 "Possible values for $arg:" 
         show_relative_command_number_args $((cmdnumber - arg))
     elif (( cmdnumber == arg )); then
         dest=!#:0 
     else
         dest=$arg
-        asyncBash_add_msg_below_ps1 "error history line $dest not found" 
+        asyncBash:Add_Msg_Below_PS1 "error history line $dest not found" 
     fi
 
     local write="${cmda[@]:0:$idx} $dest"
     #Substitute history line
-    asyncBash_substitute_command_line "$write"
+    asyncBash:Substitute_Command_Line "$write"
 }
 
 
 clean_substring_search() {
-    asyncBash_clean_screen_msgs "Search substring was reset"
+    asyncBash:Clean_Screen_Below_PS1 "Search substring was reset"
     #reset substring history search
-    currentSearchArg=
-    currentSearchIdx=0
+    asyncBash_input_argument=
+    asyncBash_output_index=0
 }
 
 #For gg/G keybindings
 search_substring_history_first() { 
-    currentSearchIdx=$((${#arrayhistory[@]}-1))
+    asyncBash_output_index=$((${#asyncBash_output_text[@]}-1))
     search_substring_history backward first
 }
 
 search_substring_history_last() { 
-    currentSearchIdx=0
+    asyncBash_output_index=0
     search_substring_history forward last
 }
 
@@ -291,19 +310,19 @@ search_substring_history() {
     local found=0
 
     #not active search
-    if [[ -z $currentSearchArg ]]; then
+    if [[ -z $asyncBash_input_argument ]]; then
         #delete all previous messages and clean the screen
         asyncBash_del_msg_below_ps1 0
         #reset 
-        arrayhistory=()
-        arrayhistory_info=()
+        asyncBash_output_text=()
+        asyncBash_output_value=()
         #get last argument
         arg=${cmda[$idx]}
 
         #Clean possible previous asyncBash calls
-        asyncBash_clean_screen_msgs
+        asyncBash:Clean_Screen_Below_PS1
         echo -n "Indexing...Hold your horses"
-        #load search in arrayhistory
+        #load search in asyncBash_output_text
         while IFS= read -r lines;
         do
             #readarray doesn't work here? bug?
@@ -314,12 +333,12 @@ search_substring_history() {
                 for elem in ${line[@]:1}; do 
                     if [[ $elem == *$arg* ]]; then
                         #unique elements, so you must do "exhaustive" 
-                        for hay in ${!arrayhistory[@]} ; do
-                            [[ ${arrayhistory[$hay]} == $elem ]] && found=1
+                        for hay in ${!asyncBash_output_text[@]} ; do
+                            [[ ${asyncBash_output_text[$hay]} == $elem ]] && found=1
                         done
                         if ((!found)); then
-                            arrayhistory+=("$elem") 
-                            arrayhistory_info+=("${line[0]}") 
+                            asyncBash_output_text+=("$elem") 
+                            asyncBash_output_value+=("${line[0]}") 
                         fi
                         found=0
                     fi
@@ -330,56 +349,56 @@ search_substring_history() {
         tput hpa 0 #move to column 0
         tput el #clean the from cursor to end of line
 
-        asyncBash_add_msg_below_ps1  "Enter Control-q to reset your search ($arg)" yes
-        asyncBash_add_msg_below_ps1  "Enter gg to go to first result, G to go to the last result" yes
-        asyncBash_create_temporal_keybind "G" "search_substring_history_first"
-        asyncBash_create_temporal_keybind "gg" "search_substring_history_last"
+        asyncBash:Add_Msg_Below_PS1  "Enter Control-q to reset your search ($arg)" yes
+        asyncBash:Add_Msg_Below_PS1  "Enter gg to go to first result, G to go to the last result" yes
+        asyncBash:Create_Temporal_Keybinding "G" "search_substring_history_first"
+        asyncBash:Create_Temporal_Keybinding "gg" "search_substring_history_last"
 
         #and set the global values
-        currentSearchArg=$arg
-        currentSearchIdx=0
-        if ((! ${#arrayhistory[@]} )); then
-            asyncBash_add_msg_below_ps1  "Nothing found!.Try harder :)"
+        asyncBash_input_argument=$arg
+        asyncBash_output_index=0
+        if ((! ${#asyncBash_output_text[@]} )); then
+            asyncBash:Add_Msg_Below_PS1  "Nothing found!.Try harder :)"
         fi
     else #active search order by time, so backward is further in time (ctl + r)
         if [[ $way == backward ]];then
-                if (( currentSearchIdx < $(( ${#arrayhistory[@]}-1 )) )); then
-                    ((currentSearchIdx++))
+                if (( asyncBash_output_index < $(( ${#asyncBash_output_text[@]}-1 )) )); then
+                    ((asyncBash_output_index++))
                 else
-                    [[ -n $move ]] && { unset 'cmda[${#cmda[@]}-1]'; cmda+=("${arrayhistory[$currentSearchIdx]}"); }
+                    [[ -n $move ]] && { unset 'cmda[${#cmda[@]}-1]'; cmda+=("${asyncBash_output_text[$asyncBash_output_index]}"); }
                     end=1
                 fi
         else #forward search
-                if (( currentSearchIdx > 0 )); then
-                    ((currentSearchIdx--))
+                if (( asyncBash_output_index > 0 )); then
+                    ((asyncBash_output_index--))
                 else
-                    [[ -n $move ]] && { unset 'cmda[${#cmda[@]}-1]'; cmda+=("${arrayhistory[$currentSearchIdx]}"); }
+                    [[ -n $move ]] && { unset 'cmda[${#cmda[@]}-1]'; cmda+=("${asyncBash_output_text[$asyncBash_output_index]}"); }
                     end=1
                 fi
         fi #end  forward search
 
    fi # end active search
 
-   if (( ${#arrayhistory[@]} )); then
-       local msg1="Position:[$((currentSearchIdx+1))/${#arrayhistory[@]}] --> " 
-       local msg2=" Historyid:${arrayhistory_info[$currentSearchIdx]}" 
+   if (( ${#asyncBash_output_text[@]} )); then
+       local msg1="Position:[$((asyncBash_output_index+1))/${#asyncBash_output_text[@]}] --> " 
+       local msg2=" Historyid:${asyncBash_output_value[$asyncBash_output_index]}" 
        # unfortunetly no other than the n00b way
-       local history_line=$(HISTTIMEFORMAT='%c|' history | grep "^[[:space:]]*${arrayhistory_info[$currentSearchIdx]} ") 
+       local history_line=$(HISTTIMEFORMAT='%c|' history | grep "^[[:space:]]*${asyncBash_output_value[$asyncBash_output_index]} ") 
        local temp=(${history_line%|*})
        local date=${temp[@]:1}
        local hcmd=${history_line##*|}
-       asyncBash_add_msg_below_ps1 "$msg1 $msg2 Date:$date"
-       asyncBash_add_msg_below_ps1 "Complete command line:${hcmd}"
+       asyncBash:Add_Msg_Below_PS1 "$msg1 $msg2 Date:$date"
+       asyncBash:Add_Msg_Below_PS1 "Complete command line:${hcmd}"
    fi
 
     if ((!end)); then
-        arg=${arrayhistory[$currentSearchIdx]}
+        arg=${asyncBash_output_text[$asyncBash_output_index]}
         write="${cmda[@]:0:$idx} $arg"
     else
         write="${cmda[@]} "
     fi
     #Substitute history line
-    asyncBash_substitute_command_line "$write"
+    asyncBash:Substitute_Command_Line "$write"
 }
 
 

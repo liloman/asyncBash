@@ -2,6 +2,10 @@
 # asyncBash
 # Copyright © 2016 liloman
 
+################################
+#  asyncBash global variables  #
+################################
+
 #current command line with the '#' stripped out
 declare -g asyncBash_current_cmd_line=
 #Arrays whith messages to show below PS1
@@ -18,51 +22,85 @@ declare -gi asyncBash_prompt_command_lines=0
 #flag to indicate a launched asyncBash command
 declare -gi asyncBash_flag_on=0
 #Get current number of lines/rows of the terminal
-declare -gi max_rows=$(tput lines)
+declare -gi asyncBash_terminal_rows=$(tput lines)
 #Number of empty lines in a msg
 declare -gi asyncBash_empty_lines=0
 #Array with temporal keybindings 
 declare -ga asyncBash_temporal_keybindings=()
 
-#Defined by user do not edit
+############
+#  output  #
+############
+
+#Array with the output messages
+declare -ga asyncBash_output_text
+#Array with the associated values of the output
+declare -ga asyncBash_output_value
+#Current output index position
+declare -gi asyncBash_output_index=0
+
+###########
+#  input  #
+###########
+
+#Current asyncBash function name
+declare -g  asyncBash_input_functionname=
+#Current argument processed by the asyncBash function
+declare -g  asyncBash_input_argument=
+
+
+########################################
+#  USER DEFINED FUNCTIONS DECLARATION  #
+########################################
+
+#Defined by user do not edit this, they 
+#are mean to be overwritten by the user
+
 #Execute this when not an asyncBash call
-asyncBash_after_out() { :; }
+asyncBash:Before_Not_AsyncBash_Call() { :; }
 #Execute this when an asyncBash call
-asyncBash_before_in() { :; }
+asyncBash:Before_AsyncBash_Call() { :; }
 #Execute this after any command
-asyncBash_on_hook()   { :; }
+asyncBash:After_Any_Call()   { :; }
+
+
+##############################
+#  asyncBash Core Functions  #
+##############################
+
+
 
 #Hook function to work with asyncBash
 #Call it on your PROMPT_COMMAND
-asyncBash_hook() {
+asyncBash:Hook() {
     #If not a asyncBash call
     if ((!asyncBash_flag_on)); then
         #save current console row to restore it 
-        asyncBash_save_current_row
+        asyncBash:Save_Current_Row
         #clean possible previous msgs
-        asyncBash_clean_screen_msgs
+        asyncBash:Clean_Screen_Below_PS1
         #Delete temporal keybindings
-        asyncBash_remove_temporal_keybinds
+        asyncBash:Remove_Temporal_Keybindings
         #Call user defined cleanning function
-        asyncBash_after_out
+        asyncBash:Before_Not_AsyncBash_Call
     else #it's in a asyncBash call so restore prompt position
-        asyncBash_restore_row_position
+        asyncBash:Restore_Row_position
         #Call user preparation function
-        asyncBash_before_in
+        asyncBash:Before_AsyncBash_Call
         asyncBash_empty_lines=0
     fi
 
     #set asyncBash envirovment
-    asyncBash_set_env
+    asyncBash:Set_Env
     #Call user on hook function
-    asyncBash_on_hook
+    asyncBash:After_Any_Call
     #reset asyncBash status flag
     asyncBash_flag_on=0
 }
 
 
 #set asyncBash_historyid,asyncBash_current_cmd_line and reset asyncBash_flag_on
-asyncBash_set_env() {
+asyncBash:Set_Env() {
     local last=($(HISTTIMEFORMAT=; history 1))
     #set global asyncBash_historyid
     asyncBash_historyid=${last[0]}
@@ -76,7 +114,7 @@ asyncBash_set_env() {
 
 #Set internal key bindings and launch user ones
 # after a bind -x not possible to execute a bind without -x ¿?
-asyncBash_set_keys() {
+asyncBash:Set_Keys() {
     #Start function
     #C-gs0 must be executed first!
     bind    '"\C-gs": "\C-gs0\e#"'
@@ -87,14 +125,14 @@ asyncBash_set_keys() {
     #delete just rewrote history line 
     bind -x '"\C-ge1": " ((asyncBash_historyid >0)) && history -d $asyncBash_historyid"'
     #show the msgs in the queue below the PS1
-    bind -x '"\C-ge2": "asyncBash_show_msgs_below_ps1"'
+    bind -x '"\C-ge2": "asyncBash:Show_Msg_Below_PS1"'
 
     #Load vi insert mode user keybindings
     bind -f "${BASH_SOURCE%/*}/asyncBash.inputrc"
 }
 
 #Delete temporal keybindings
-asyncBash_remove_temporal_keybinds() {
+asyncBash:Remove_Temporal_Keybindings() {
     local -i i=0
     for key in "${asyncBash_temporal_keybindings[@]}"; do
         bind -r $key
@@ -108,7 +146,7 @@ asyncBash_remove_temporal_keybinds() {
 # $1: keybind
 # $2: shell function to call
 # $3: 1º shell function argument
-asyncBash_create_temporal_keybind() {
+asyncBash:Create_Temporal_Keybinding() {
     local keybind=$1
     local fun=$2
     local arg=$3
@@ -121,7 +159,7 @@ asyncBash_create_temporal_keybind() {
 }
 
 #Substitute last command with $1
-asyncBash_substitute_command_line() {
+asyncBash:Substitute_Command_Line() {
     if ((asyncBash_historyid>0)); then
         #remove last history entry 
         history -d $asyncBash_historyid
@@ -134,13 +172,13 @@ asyncBash_substitute_command_line() {
 #restore saved consolerow from asyncBash_save_current_row in ps1
 #it's executed before an asyncBash call to put the cursor in just above the "old"
 # prompt to let bash override it again making the ilusion of no change :)
-asyncBash_restore_row_position() {
+asyncBash:Restore_Row_position() {
     #set current number of lines of the terminal
-    max_rows=$(tput lines)
+    asyncBash_terminal_rows=$(tput lines)
     #calculate final row
     local -i current_row=$(($asyncBash_consolerow)) 
 
-    if (( $current_row < $max_rows )); then
+    if (( $current_row < $asyncBash_terminal_rows )); then
         #sleep 2 # uncomment for debug ;)
         # go up prompt command lines + cli line
         tput cup $(($asyncBash_consolerow - $asyncBash_prompt_command_lines - 1)) 0
@@ -149,11 +187,11 @@ asyncBash_restore_row_position() {
         #if in bottom and no previous command (but asyncBash call or empty line)
         # 2 use cases: prev or no prev command
         #sleep 4 # uncomment for debug ;)
-        if (( $current_row == $max_rows )); then
+        if (( $current_row == $asyncBash_terminal_rows )); then
             # go up prompt command lines + cli line + auto scroll (cause bottom)
             tput cup $(($asyncBash_consolerow - $asyncBash_prompt_command_lines - 2)) 0
         else # the user executed a previous command so the real row could be wrong cause asyncBash_prompt_command_lines
-            local -i diff=$((current_row - max_rows))
+            local -i diff=$((current_row - asyncBash_terminal_rows))
             # go up prompt command lines + cli line + auto scroll (cause bottom) + new lines of output
             tput cup $(($asyncBash_consolerow - $asyncBash_prompt_command_lines - 2 - $diff)) 0
         fi
@@ -165,7 +203,7 @@ asyncBash_restore_row_position() {
 
 
 #get current PS1 row to restore it after ctl-g functions
-asyncBash_save_current_row() {
+asyncBash:Save_Current_Row() {
     local COL
     local ROW
     IFS=';' read -sdR -p $'\E[6n' ROW COL
@@ -179,7 +217,7 @@ asyncBash_save_current_row() {
 #$2 to indicate if must be fixed until command execution
 #the msg line is cut to the current column number cause when displayed
 #the terminal wrapping is disabled temporalily due usability mesures
-asyncBash_add_msg_below_ps1() {
+asyncBash:Add_Msg_Below_PS1() {
     local msg=${1:-empty}
     local fix=${2:-no}
     #number of columns of the terminal
@@ -203,7 +241,7 @@ asyncBash_add_msg_below_ps1() {
 #delete a/all msg to not show it again below the PS1
 #pass 0 to delete all and clean screen below PS1
 #pass 1 to delete all but fixed (workaround due bug in unset)
-asyncBash_del_msg_below_ps1() {
+asyncBash:Del_Messages_Below_PS1() {
     local -i arg=$1
     local clean=${2:-yes}
     local msg= 
@@ -226,7 +264,7 @@ asyncBash_del_msg_below_ps1() {
         asyncBash_msgs_in_queue=0
         #add fixed messages
         for msg in "${temp[@]}" ; do
-            asyncBash_add_msg_below_ps1 "$msg" yes
+            asyncBash:Add_Msg_Below_PS1 "$msg" yes
         done
     else
         asyncBash_msgs_below_ps1_order=()
@@ -238,7 +276,7 @@ asyncBash_del_msg_below_ps1() {
 }
 
 #Show messages below the PS1
-asyncBash_show_msgs_below_ps1() {
+asyncBash:Show_Msg_Below_PS1() {
     local fix=
     local msg=
     local -i found_fixed=0
@@ -273,7 +311,7 @@ asyncBash_show_msgs_below_ps1() {
             [[ $fix == yes ]] && found_fixed=1
             [[ $msg == empty ]] && msg=
             #print the msg (should the msg be cleaned after x seconds?)
-            if (( $real_output > $max_rows )); then
+            if (( $real_output > $asyncBash_terminal_rows )); then
                 pager_output+="$msg\n"
             else
                 #force scroll
@@ -285,7 +323,7 @@ asyncBash_show_msgs_below_ps1() {
             fi
         done
 
-        if (( $real_output > $max_rows )); then
+        if (( $real_output > $asyncBash_terminal_rows )); then
             # pipe and not redirect to escape characters in bash before
             [[ -z $PAGER ]] && PAGER=less
             echo -e $pager_output | $PAGER
@@ -296,13 +334,13 @@ asyncBash_show_msgs_below_ps1() {
             local -i old_row=$(($asyncBash_consolerow - 1)) 
 
             # the output doesn't need scrolling put the cursor where it was before the output
-            if (( $final_row <= $max_rows )); then
+            if (( $final_row <= $asyncBash_terminal_rows )); then
                 #sleep 2 # (uncomment to debug) ;)
                 tput cup $old_row 0
                 #sleep 2 # (uncomment to debug) ;)
             else # the terminal needs to do scrolling to show the output
                 #sleep 2 # (uncomment to debug) ;)
-                local -i diff=$(( $final_row - $max_rows ))
+                local -i diff=$(( $final_row - $asyncBash_terminal_rows ))
                 tput cup $(($old_row - $diff)) 0
                 #adjust real position for chained calls
                 ((asyncBash_consolerow-=diff))
@@ -312,7 +350,7 @@ asyncBash_show_msgs_below_ps1() {
         #set flag queue
         asyncBash_msgs_in_queue=$found_fixed
         #delete all or not fixed messages without cleaning screen
-        asyncBash_del_msg_below_ps1 $found_fixed no
+        asyncBash:Del_Messages_Below_PS1 $found_fixed no
         #enable line wrapping
         tput smam
         #enable glob expansion
@@ -322,27 +360,27 @@ asyncBash_show_msgs_below_ps1() {
 
 
 #Clean screen messages,reset env variables showing a message on finish if wanted
-asyncBash_clean_screen_msgs() {
+asyncBash:Clean_Screen_Below_PS1() {
     local msg=$1
     #delete all messages arrays and clean screen 
-    asyncBash_del_msg_below_ps1 0
+    asyncBash:Del_Messages_Below_PS1 0
 
     if [[ -n $msg ]]; then
-        asyncBash_add_msg_below_ps1 "$msg"
-        asyncBash_show_msgs_below_ps1
+        asyncBash:Add_Msg_Below_PS1 "$msg"
+        asyncBash:Show_Msg_Below_PS1
     fi
 }
 
 #Load the shortkeys and hoot it to the PS1
-asyncBash_load() {
+asyncBash:Load() {
     #Load the keybindings
-    asyncBash_set_keys 
+    asyncBash:Set_Keys 
     #Load the user functions
     . "${BASH_SOURCE%/*}/my_fun.sh"
     #Hook asyncBash to PROMPT_COMMAND
-    PROMPT_COMMAND+=";asyncBash_hook"
+    PROMPT_COMMAND+=";asyncBash:Hook"
 }
 
 
 #Load it
-asyncBash_load
+asyncBash:Load
