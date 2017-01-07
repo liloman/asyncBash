@@ -95,6 +95,7 @@ asyncBash:Hook() {
         asyncBash_empty_lines=0
     fi
 
+    #important order
     #set asyncBash envirovment
     asyncBash:Set_Env
     #Call user on hook function
@@ -114,7 +115,7 @@ asyncBash:Reset_Input_Output() {
     asyncBash_input_argument=
 }
 
-#set asyncBash_historyid,asyncBash_current_cmd_line and reset asyncBash_flag_on
+#set asyncBash_historyid and asyncBash_current_cmd_line 
 asyncBash:Set_Env() {
     local last=($(HISTTIMEFORMAT=; history 1))
     #set global asyncBash_historyid
