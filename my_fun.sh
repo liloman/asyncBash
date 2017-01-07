@@ -58,7 +58,7 @@ asyncBash:Before_Not_AsyncBash_Call() { :; }
 asyncBash:Before_AsyncBash_Call() { :; }
 
 #Execute this after any command
-asyncBash:After_Any_Call()   { 
+asyncBash:Before_Any_Call()   { 
     #set cmdnumber 
     set_cmd_number
 }
@@ -68,16 +68,108 @@ asyncBash:After_Any_Call()   {
 #  Functions  #
 ###############
 
+#Move the selection one line up
+select_list_up() {
+  local -a position=()
+  local -i row=0
+  local msg=
+  local next=
+  local -a cmda=($asyncBash_current_cmd_line)
+
+  #if it's possible to move up
+  if (( $asyncBash_output_index_list > 0 )); then
+      ((asyncBash_output_index_list--))
+
+      position=${asyncBash_output_position[$asyncBash_output_index_list]}
+      row=${position[0]}
+      msg=${asyncBash_output_text[$asyncBash_output_index_list]}
+      tput sc
+
+     if (( $asyncBash_output_index_list +1 < ${#asyncBash_output_position[@]} )); then
+          next=${asyncBash_output_text[$asyncBash_output_index_list+1]}
+          tput vpa $((row+1))
+          tput el 
+          echo -E "$next"
+      fi
+
+      tput vpa $row
+      tput el
+      tput el
+      echo -e "\033[44m$msg\033[0m index:$asyncBash_output_index_list"
+      tput rc
+
+      #Substitute history line
+      asyncBash:Substitute_Command_Line "${cmda[@]:0:$((${#cmda[@]}-1))} $msg"
+  else
+      asyncBash:Substitute_Command_Line "${asyncBash_current_cmd_line}"
+
+  fi
+}
+
+#Move the selection one line down
+select_list_down() {
+  local -a position=()
+  local -i row=0
+  local msg=
+  local prev=
+  local -i pos=$asyncBash_output_index_list
+  local -a cmda=($asyncBash_current_cmd_line)
+
+  #if it's possible to move down
+  if (( $asyncBash_output_index_list < ${#asyncBash_output_position[@]}-1 )); then
+      ((asyncBash_output_index_list++))
+
+      position=${asyncBash_output_position[$asyncBash_output_index_list]}
+      msg=${asyncBash_output_text[$asyncBash_output_index_list]}
+      row=${position[0]}
+      tput sc
+
+      if (( $asyncBash_output_index_list -1 >= 0 )); then
+          prev=${asyncBash_output_text[$asyncBash_output_index_list-1]}
+          tput vpa $((row-1))
+          tput el 
+          echo -E "$prev"
+      fi
+
+      tput vpa $row
+      tput el 
+      echo -e "\033[44m$msg\033[0m index:$asyncBash_output_index_list"
+      tput rc
+
+
+      #Substitute history line
+      if (( $pos == -1 )); then
+          asyncBash:Substitute_Command_Line "${asyncBash_current_cmd_line} $msg"
+      else
+          asyncBash:Substitute_Command_Line "${cmda[@]:0:$((${#cmda[@]}-1))} $msg"
+
+      fi
+  else
+          asyncBash:Substitute_Command_Line "${asyncBash_current_cmd_line}"
+  fi
+
+    
+}
+
 #Execute current command and show output below the ps1
 # with error in red
 # execute multiple commands
 run_current_cli() {
+    #[[ -z $asyncBash_current_cmd_line ]] && { asyncBash_historyid=0; return; }
     [[ -z $asyncBash_current_cmd_line ]] && return
+
     asyncBash_input_functionname=$FUNCNAME
+
     #Clean possible previous asyncBash calls
     asyncBash:Clean_Screen_Below_PS1
     local line=
     local com=($asyncBash_current_cmd_line)
+
+    # #alt + down arrow
+    asyncBash:Create_Temporal_Keybinding "\e[1;3B" "select_list_down"
+    # #alt + up arrow
+    asyncBash:Create_Temporal_Keybinding "\e[1;3A" "select_list_up"
+
 
     while IFS= read -r line
     do
@@ -118,7 +210,6 @@ edit_command_hint() {
 #Autocomplete
 autocomplete_hints() {
     [[ -z $asyncBash_current_cmd_line ]] && return
-    asyncBash_input_functionname=$FUNCNAME
 
     local -a cmda=($asyncBash_current_cmd_line)
     #modify last argument = autocomplete :)
@@ -197,7 +288,7 @@ show_command_hints() {
 
     #Substitute history line
     [[ -z $asyncBash_current_cmd_line ]] && cmda=("")
-    asyncBash:Substitute_Command_Line "${cmda[@]:-1}"
+    asyncBash:Substitute_Command_Line "${cmda[@]}"
 }
 
 #1.Bash doesn't get into account of histcontrol and histignore with \#
@@ -313,7 +404,7 @@ search_substring_history() {
     if [[ -z $asyncBash_input_argument ]]; then
         #delete all previous messages and clean the screen
         asyncBash:Del_Messages_Below_PS1 0
-        #reset 
+        #reset just needed
         asyncBash_output_text=()
         asyncBash_output_value=()
         #get last argument

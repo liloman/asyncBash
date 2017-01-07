@@ -38,6 +38,10 @@ declare -ga asyncBash_output_text
 declare -ga asyncBash_output_value
 #Current output index position
 declare -gi asyncBash_output_index=-1
+#Array with the position (row colum) of each message
+declare -ga asyncBash_output_position
+#Current output list index position
+declare -ga asyncBash_output_index_list=-1
 
 ###########
 #  input  #
@@ -61,7 +65,7 @@ asyncBash:Before_Not_AsyncBash_Call() { :; }
 #Execute this when an asyncBash call
 asyncBash:Before_AsyncBash_Call() { :; }
 #Execute this after any command
-asyncBash:After_Any_Call()   { :; }
+asyncBash:Before_Any_Call()   { :; }
 
 
 ##############################
@@ -99,7 +103,7 @@ asyncBash:Hook() {
     #set asyncBash envirovment
     asyncBash:Set_Env
     #Call user on hook function
-    asyncBash:After_Any_Call
+    asyncBash:Before_Any_Call
     #reset asyncBash status flag
     asyncBash_flag_on=0
 }
@@ -107,9 +111,11 @@ asyncBash:Hook() {
 #Reset input output
 asyncBash:Reset_Input_Output() {
     #reset output values
-    asyncBash_output_text=
+    asyncBash_output_text=()
     asyncBash_output_value=()
     asyncBash_output_index=-1
+    asyncBash_output_index_list=-1
+    asyncBash_output_position=()
     #reset input values
     asyncBash_input_functionname=
     asyncBash_input_argument=
@@ -138,7 +144,7 @@ asyncBash:Set_Keys() {
 
     #End function
     bind    '"\C-ge": "\eki\C-ge1\C-ge2"'
-    #delete just rewrote history line 
+    #delete just rewritten history line 
     bind -x '"\C-ge1": " ((asyncBash_historyid >0)) && history -d $asyncBash_historyid"'
     #show the msgs in the queue below the PS1
     bind -x '"\C-ge2": "asyncBash:Show_Msg_Below_PS1"'
@@ -154,7 +160,8 @@ asyncBash:Remove_Temporal_Keybindings() {
         #remove the user keybind
         bind -r $key
         #remove the associated keybind
-        bind -r "\C-gt$i"
+        # bind -r "\C-gt$i"doesnt work ¿?
+        bind -x '"\C-gt'$i'": ""'
         ((i++))
     done
     asyncBash_temporal_keybindings=()
@@ -220,8 +227,6 @@ asyncBash:Restore_Row_position() {
         fi
         #sleep 4 # uncomment for debug ;)
     fi
-    #clean screen below PS1
-    tput ed
 }
 
 
@@ -301,6 +306,7 @@ asyncBash:Del_Messages_Below_PS1() {
 
 #Show messages below the PS1
 asyncBash:Show_Msg_Below_PS1() {
+    local list=${1:-no}
     local fix=
     local msg=
     local -i found_fixed=0
@@ -320,6 +326,10 @@ asyncBash:Show_Msg_Below_PS1() {
         local -i final_row=$(($asyncBash_consolerow + $lines_displayed)) 
         # lines displayed + cli + prompt + possible ctrl-q message + empty lines
         local -i real_output=$(( $lines_displayed + 1 + $asyncBash_prompt_command_lines + 1 + $asyncBash_empty_lines))
+        # Initialize the position of each message in the screen to list mode
+        local -i msg_row=$(($asyncBash_consolerow + 1)) 
+        # Initialize the array to hold the position of each message in the screen to list mode
+        local -a row_position=($msg_row 0)
         #leave an empty line below the ps1
         echo ""
         tput cud1
@@ -336,10 +346,15 @@ asyncBash:Show_Msg_Below_PS1() {
             # in the queue for the next possible call
             [[ $fix == yes ]] && found_fixed=1
             [[ $msg == empty ]] && msg=
-            #print the msg (should the msg be cleaned after x seconds?)
+           
             if (( $real_output > $asyncBash_terminal_rows )); then
                 pager_output+="$msg\n"
             else
+                # basic just one line for row (no columns)
+                asyncBash_output_position+=($row_position)
+                asyncBash_output_text+=("$msg")
+                #increment and assign
+                row_position=( $((++msg_row)) 0)
                 #echo without interpret
                 echo -E "${msg}"
             fi
@@ -371,6 +386,7 @@ asyncBash:Show_Msg_Below_PS1() {
                 #sleep 2 # (uncomment to debug) ;)
             fi
         fi
+
         #set flag queue
         asyncBash_msgs_in_queue=$found_fixed
         #delete all or not fixed messages without cleaning screen
