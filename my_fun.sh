@@ -166,10 +166,7 @@ select_list_down() {
 # with error in red
 # execute multiple commands
 run_current_cli() {
-    #[[ -z $asyncBash_current_cmd_line ]] && { asyncBash_historyid=0; return; }
     [[ -z $asyncBash_current_cmd_line ]] && return
-
-    asyncBash_input_functionname=$FUNCNAME
 
     #Clean possible previous asyncBash calls
     asyncBash:Clean_Screen_Below_PS1
@@ -177,9 +174,9 @@ run_current_cli() {
     local com=($asyncBash_current_cmd_line)
 
     # #alt + down arrow
-    asyncBash:Create_Temporal_Keybinding "\e[1;3B" "select_list_down"
+    asyncBash:Create_Temporal_Keybinding "no" "\e[1;3B" "select_list_down"
     # #alt + up arrow
-    asyncBash:Create_Temporal_Keybinding "\e[1;3A" "select_list_up"
+    asyncBash:Create_Temporal_Keybinding "no" "\e[1;3A" "select_list_up"
 
 
     while IFS= read -r line
@@ -197,7 +194,6 @@ run_current_cli() {
 #from ~/.local/share/asyncBash/hints
 edit_command_hint() {
     [[ -z $asyncBash_current_cmd_line ]] && return
-    asyncBash_input_functionname=$FUNCNAME
     #Clean possible previous asyncBash calls
     asyncBash:Clean_Screen_Below_PS1
     local -a cmda=($asyncBash_current_cmd_line)
@@ -214,7 +210,7 @@ edit_command_hint() {
     fi
     $EDITOR $file
     #Substitute history line
-    asyncBash:Substitute_Command_Line "${cmda[@]:-1}"
+    asyncBash:Substitute_Command_Line "${cmda[@]}"
 }
 
 
@@ -224,10 +220,10 @@ autocomplete_hints() {
 
     local -a cmda=($asyncBash_current_cmd_line)
     #modify last argument = autocomplete :)
-    cmda[-1]=${asyncBash_output_text[$asyncBash_output_index]}
+    cmda[-1]=${asyncBash_output_value[$asyncBash_output_index]}
 
     #cycle between results
-    if (( $asyncBash_output_index + 1 >= ${#asyncBash_output_text[@]} )); then
+    if (( $asyncBash_output_index + 1 >= ${#asyncBash_output_value[@]} )); then
         asyncBash_output_index=0
     else
         (( asyncBash_output_index++ ))
@@ -242,7 +238,6 @@ autocomplete_hints() {
 # if empty line then show all hints 
 # if a exact match is not found then show relatives
 show_command_hints() {
-    asyncBash_input_functionname=$FUNCNAME
     #Clean possible previous asyncBash calls
     asyncBash:Clean_Screen_Below_PS1
     local -a cmda=($asyncBash_current_cmd_line)
@@ -275,10 +270,10 @@ show_command_hints() {
         asyncBash:Add_Msg_Below_PS1 "Enter Control-q to clean screen messages" yes
         asyncBash:Add_Msg_Below_PS1 "You can created a new file or edit it with $EDITOR with $keybin"  yes
         asyncBash:Add_Msg_Below_PS1 "Enter Alt-a to autcomplete hints" yes
-        asyncBash:Create_Temporal_Keybinding "\ea" "autocomplete_hints"
+        asyncBash:Create_Temporal_Keybinding "no" "\ea" "autocomplete_hints"
 
         #Reset possibles prev searches
-        asyncBash_output_text=()
+        asyncBash_output_value=()
         asyncBash_output_index=-1
 
         for file in $(shopt -s dotglob;echo "$path/$cmd"*.txt); do
@@ -286,14 +281,14 @@ show_command_hints() {
             [[ $file == $cmd'*' ]] && break #no luck
             ((i)) || {
             if [[ -n $asyncBash_current_cmd_line ]]; then 
-                asyncBash:Add_Msg_Below_PS1 "Exact match not found. Possible values are:"yes
+                asyncBash:Add_Msg_Below_PS1 "Exact match not found. Possible values are:" yes
             else
                 asyncBash:Add_Msg_Below_PS1 "Listing all hints:" yes 
             fi
         }
             ((i++))
             asyncBash:Add_Msg_Below_PS1 "$i)${file}" yes
-            asyncBash_output_text+=("$file")
+            asyncBash_output_value+=("$file")
         done
     fi
 
@@ -319,7 +314,6 @@ set_cmd_number() {
 #Insert the relative command number from the actual
 insert_relative_command_number() {
     [[ -z $asyncBash_current_cmd_line ]] && return
-    asyncBash_input_functionname=$FUNCNAME
     #Show a legend below prompt with the arguments of a relative command number
     show_relative_command_number_args() {
         #get history id
@@ -376,19 +370,21 @@ insert_relative_command_number() {
 }
 
 
-clean_substring_search() {
+#Reset substring history search
+reset_substring_search() {
     asyncBash:Clean_Screen_Below_PS1 "Search substring was reset"
     #reset substring history search
     asyncBash_input_argument=
     asyncBash_output_index=-1
 }
 
-#For gg/G keybindings
+#For gg substring history search keybinding
 search_substring_history_first() { 
     asyncBash_output_index=$((${#asyncBash_output_text[@]}-1))
     search_substring_history backward first
 }
 
+#For G substring history search keybinding
 search_substring_history_last() { 
     asyncBash_output_index=0
     search_substring_history forward last
@@ -399,8 +395,7 @@ search_substring_history_last() {
 #More than enough for me use case
 search_substring_history() {
     [[ -z $asyncBash_current_cmd_line ]] && return
-    asyncBash_input_functionname=$FUNCNAME
-    bind -x '"\C-q": clean_substring_search'
+    bind -x '"\C-q": reset_substring_search'
     local way=$1
     local move=$2
     local -a cmda=($asyncBash_current_cmd_line)
@@ -453,8 +448,8 @@ search_substring_history() {
 
         asyncBash:Add_Msg_Below_PS1  "Enter Control-q to reset your search ($arg)" yes
         asyncBash:Add_Msg_Below_PS1  "Enter gg to go to first result, G to go to the last result" yes
-        asyncBash:Create_Temporal_Keybinding "G" "search_substring_history_first"
-        asyncBash:Create_Temporal_Keybinding "gg" "search_substring_history_last"
+        asyncBash:Create_Temporal_Keybinding "yes" "G" "search_substring_history_first"
+        asyncBash:Create_Temporal_Keybinding "yes" "gg" "search_substring_history_last"
 
         #and set the global values
         asyncBash_input_argument=$arg

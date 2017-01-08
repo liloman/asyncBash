@@ -103,7 +103,6 @@ So let's fill it:
 #from ~/.local/share/asyncBash/hints
 show_command_hints() {
     [[ -z $asyncBash_current_cmd_line ]] && return
-    asyncBash_input_functionname=$FUNCNAME
     #Clean possible previous asyncBash calls
     asyncBash_clean_screen_msgs
     local -a cmda=($asyncBash_current_cmd_line)
@@ -129,7 +128,6 @@ Let's say that ~/.local/share/asyncBash/hints/$cmd.txt is our path:
 #from ~/.local/share/asyncBash/hints
 show_command_hints() {
     [[ -z $asyncBash_current_cmd_line ]] && return
-    asyncBash_input_functionname=$FUNCNAME
     #Clean possible previous asyncBash calls
     asyncBash_clean_screen_msgs
     local -a cmda=($asyncBash_current_cmd_line)
@@ -173,7 +171,6 @@ There is an obvious error we don't check for the file but the important is that 
 #from ~/.local/share/asyncBash/hints
 show_command_hints() {
     [[ -z $asyncBash_current_cmd_line ]] && return
-    asyncBash_input_functionname=$FUNCNAME
     #Clean possible previous asyncBash calls
     asyncBash_clean_screen_msgs
     local -a cmda=($asyncBash_current_cmd_line)

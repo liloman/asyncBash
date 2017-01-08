@@ -29,14 +29,18 @@ declare -gi asyncBash_empty_lines=0
 declare -ga asyncBash_temporal_keybindings=()
 #Array with static keybindings
 declare -ga asyncBash_static_keybindings=()
+#Current asyncBash function name
+declare -g  asyncBash_current_functionname=
+#Previous asyncBash function name
+declare -g  asyncBash_prev_functionname=
 
 ############
 #  output  #
 ############
 
-#Array with the output messages
+#Array with the output messages (for visual selection)
 declare -ga asyncBash_output_text
-#Array with the associated values of the output
+#Array with the associated values of the output (for autocomplete)
 declare -ga asyncBash_output_value
 #Current output index position
 declare -gi asyncBash_output_index=-1
@@ -49,8 +53,6 @@ declare -ga asyncBash_output_index_list=-1
 #  input  #
 ###########
 
-#Current asyncBash function name
-declare -g  asyncBash_input_functionname=
 #Current argument processed by the asyncBash function
 declare -g  asyncBash_input_argument=
 
@@ -79,12 +81,12 @@ asyncBash:Before_Any_Call()   { :; }
 #Hook function to work with asyncBash
 #Call it on your PROMPT_COMMAND
 asyncBash:Hook() {
-    #If not a asyncBash call
+    #If not an asyncBash call
     if ((!asyncBash_flag_on)); then
         #save current console row to restore it 
         asyncBash:Save_Current_Row
-        # if the previous call was an asyncBash 
-        if [[ -n $asyncBash_input_functionname ]]; then
+        # if the previous call was an asyncBash clean
+        if [[ -n $asyncBash_current_functionname ]]; then
             #clean possible previous msgs
             asyncBash:Clean_Screen_Below_PS1
             #Delete temporal keybindings
@@ -94,7 +96,20 @@ asyncBash:Hook() {
         fi
         #Call user defined cleanning function
         asyncBash:Before_Not_AsyncBash_Call
-    else #it's in a asyncBash call so restore prompt position
+    else #it's an asyncBash call
+        #two different chained asyncBash calls
+        if [[ -n $asyncBash_prev_functionname && $asyncBash_current_functionname != $asyncBash_prev_functionname ]]; then
+            #clean possible previous msgs
+            asyncBash:Clean_Screen_Below_PS1 
+            #Delete temporal keybindings
+            asyncBash:Remove_Temporal_Keybindings
+            #Reset all output/input
+            asyncBash:Reset_Input_Output
+        fi
+        #set previous asyncBash call to current
+        asyncBash_prev_functionname=$asyncBash_current_functionname
+
+        #restore prompt positioni
         asyncBash:Restore_Row_position
         #Call user preparation function
         asyncBash:Before_AsyncBash_Call
@@ -119,7 +134,6 @@ asyncBash:Reset_Input_Output() {
     asyncBash_output_index_list=-1
     asyncBash_output_position=()
     #reset input values
-    asyncBash_input_functionname=
     asyncBash_input_argument=
 }
 
@@ -183,44 +197,56 @@ asyncBash:Create_Static_Keybinding() {
     local keybind=$1
     local fun=$2
     local arg=${3:-""}
-    local letters=bcdefghijkl
     local total=${#asyncBash_static_keybindings[@]}
     local rest=$(( $total % 9 ))
+    #for statics  (g, e and s already taken)
+    local letters=fhij
     local letter=${letters:$(( $total/9 )):1}
+    #to set asyncBash_current_functionname 
+    local letters2=abcd
+    local letter2=${letters2:$(( $total/9 )):1}
 
 
     #fun and arg need to be separated with that space ¿?
     #i can't get it to work with just 1 argument (must be something related to expansion when spaces)
     bind -x <<< echo '"\C-g'$letter$rest'": '$fun' '$arg''
+    bind -x <<< echo '"\C-g'$letter2$rest'": 'asyncBash_current_functionname=$fun''
 
     # bash <-> readline communication
     # You can execute pseudo async bash commands on readline and get the results back
     # 1.C-gs to "transfer" the line to bash
     # 2.Your keyboard/bash/macro
-    # 3.C-ge to transfer back the modified command line
-    # 4.Your final keyboard/bash/macros on the modified command line
+    # 3.Set asyncBash_current_functionname
+    # 4.C-ge to transfer back the modified command line
+    # 5.Your final keyboard/bash/macros on the modified command line
 
-    bind  <<< echo '"'$keybind'": "\C-gs\C-g'$letter$rest'\C-ge\C-e"'
-
-    # bind 'Control-r: "\C-gs\C-gb9\C-ge\C-e"'
-    # bind -x '"\C-gb9": "search_substring_history forward"'
+    bind  <<< echo '"'$keybind'": "\C-g'$letter2$rest'\C-gs\C-g'$letter$rest'\C-ge\C-e"'
 
     asyncBash_static_keybindings+=("$keybind")
 }
 
 #Create a keybind during the duration of the asyncBash
-# $1: keybind
-# $2: shell function to call
-# $3: 1º shell function argument
+# $1: Show messages 
+# $2: keybind
+# $3: shell function to call
+# $4: 1º shell function argument
 asyncBash:Create_Temporal_Keybinding() {
-    local keybind=$1
-    local fun=$2
-    local arg=$3
+    local show=$1
+    local keybind=$2
+    local fun=$3
+    local arg=${4:-""}
 
     #fun and arg need to be separated with that space ¿?
     #i can't get it to work with just 1 argument (must be something related to expansion when spaces)
     bind -x <<< echo '"\C-gt'${#asyncBash_temporal_keybindings[@]}'": '$fun' '$arg''
-    bind <<< echo "\"$keybind\": \"\C-gs\C-gt${#asyncBash_temporal_keybindings[@]}\C-ge\C-e\"" 
+
+    #if you don't want to execute Show_Msg_Below_PS1 after all processing
+    if [[ $show == no ]]; then
+        bind <<< echo "\"$keybind\": \"\C-gs\C-gt${#asyncBash_temporal_keybindings[@]}\eki\C-ge1\C-e\""
+    else # refresh the output after function
+        bind <<< echo "\"$keybind\": \"\C-gs\C-gt${#asyncBash_temporal_keybindings[@]}\C-ge\C-e\"" 
+    fi
+
     asyncBash_temporal_keybindings+=("$keybind")
 }
 
