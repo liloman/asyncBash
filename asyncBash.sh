@@ -27,6 +27,8 @@ declare -gi asyncBash_terminal_rows=$(tput lines)
 declare -gi asyncBash_empty_lines=0
 #Array with temporal keybindings 
 declare -ga asyncBash_temporal_keybindings=()
+#Array with static keybindings
+declare -ga asyncBash_static_keybindings=()
 
 ############
 #  output  #
@@ -137,6 +139,10 @@ asyncBash:Set_Env() {
 #Set internal key bindings and launch user ones
 # after a bind -x not possible to execute a bind without -x ¿?
 asyncBash:Set_Keys() {
+
+    #Basic
+   # bind 'Control-e: end-of-line'
+
     #Start function
     #C-gs0 must be executed first!
     bind    '"\C-gs": "\C-gs0\e#"'
@@ -148,9 +154,6 @@ asyncBash:Set_Keys() {
     bind -x '"\C-ge1": " ((asyncBash_historyid >0)) && history -d $asyncBash_historyid"'
     #show the msgs in the queue below the PS1
     bind -x '"\C-ge2": "asyncBash:Show_Msg_Below_PS1"'
-
-    #Load vi insert mode user keybindings
-    bind -f "${BASH_SOURCE%/*}/asyncBash.inputrc"
 }
 
 #Delete all temporal keybindings
@@ -170,6 +173,39 @@ asyncBash:Remove_Temporal_Keybindings() {
     #bug: doesn't work. see bind -X :(
     #bind -r "\C-q"
     bind -x '"\C-q": ""'
+}
+
+#Create a static keybind 
+# $1: keybind
+# $2: shell function to call
+# $3: 1º shell function argument
+asyncBash:Create_Static_Keybinding() {
+    local keybind=$1
+    local fun=$2
+    local arg=${3:-""}
+    local letters=bcdefghijkl
+    local total=${#asyncBash_static_keybindings[@]}
+    local rest=$(( $total % 9 ))
+    local letter=${letters:$(( $total/9 )):1}
+
+
+    #fun and arg need to be separated with that space ¿?
+    #i can't get it to work with just 1 argument (must be something related to expansion when spaces)
+    bind -x <<< echo '"\C-g'$letter$rest'": '$fun' '$arg''
+
+    # bash <-> readline communication
+    # You can execute pseudo async bash commands on readline and get the results back
+    # 1.C-gs to "transfer" the line to bash
+    # 2.Your keyboard/bash/macro
+    # 3.C-ge to transfer back the modified command line
+    # 4.Your final keyboard/bash/macros on the modified command line
+
+    bind  <<< echo '"'$keybind'": "\C-gs\C-g'$letter$rest'\C-ge\C-e"'
+
+    # bind 'Control-r: "\C-gs\C-gb9\C-ge\C-e"'
+    # bind -x '"\C-gb9": "search_substring_history forward"'
+
+    asyncBash_static_keybindings+=("$keybind")
 }
 
 #Create a keybind during the duration of the asyncBash

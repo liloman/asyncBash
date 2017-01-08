@@ -18,34 +18,45 @@ declare -gi prev_historyid=0
 
 
 
-#################################
-#  BINDS for asyncBash.inputrc  #
-#################################
+##################
+#  STATIC BINDS  #
+##################
+
+#<warning>
+#It's important to quote all single parameters if you try to pass "fun arg" 
+#it won't work and some keybindings will be remove from your keyboard so be careful
+#</warning>
+
+# Use Ctrl + v to see the keybindings (^[ is \e)
+#\e is Alt/M-/Esc/... for keybindings (Escape)
+#\C- is Control 
 
 #Bind to insert relative command  number
 #positive number for current session
 # <=0 for older sessions ;)
-bind -x '"\C-gb0":insert_relative_command_number'
+asyncBash:Create_Static_Keybinding "\C-h" "insert_relative_command_number"
 
 # Search for a substring *argument* into history 
 # c-n dynamic-complete-history on steroids 
-#Backward search
-bind -x '"\C-gb1": search_substring_history backward'
-#Forward search
-bind -x '"\C-gb2": search_substring_history forward'
+# backward
+asyncBash:Create_Static_Keybinding "\C-s" "search_substring_history" "backward"
+# # # forward
+asyncBash:Create_Static_Keybinding "\C-r" "search_substring_history" "forward"
 
-#Display a cheatsheet for the first command on the cli
-bind -x '"\C-gb3": show_command_hints 0'
-#Display a cheatsheet for the last command on the cli
-bind -x '"\C-gb4": show_command_hints 1'
-#Create/edit a cheatsheet for the first command
-bind -x '"\C-gb5": edit_command_hint 0'
-#Create/edit a cheatsheet for the last command
-bind -x '"\C-gb6": edit_command_hint 1'
+# alt + h + f: Show hints for first command
+asyncBash:Create_Static_Keybinding "\ehf" "show_command_hints" "0"
 
-#Execute current command without moving
-bind -x '"\C-gb7": run_current_cli'
+#alt + h + l: Show hints for last command
+asyncBash:Create_Static_Keybinding "\ehl" "show_command_hints" "1"
 
+#alt + e + f:  Create/Edit hints for first
+asyncBash:Create_Static_Keybinding "\eel" "edit_command_hint" "0"
+
+#alt + e + l: Create/Edit hints for last command
+asyncBash:Create_Static_Keybinding "\eel" "edit_command_hint" "1"
+
+#alt + r: Execute command line without moving
+asyncBash:Create_Static_Keybinding "\er" "run_current_cli"
 
 ########################
 #  User defined hooks  #

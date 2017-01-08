@@ -54,46 +54,26 @@ $>journalctl -xr (pressed Alt-h)
  _PID=444  / _UID=345 /  SYSLOG_IDENTIFIER=firejail / ...
 ```
 
-##Make the generic binding for our function
+##Make the static keybind for our function
 
-You need to add this line to asyncBash.inputrc between the insert mode $if/$endif.
 NOTE: \e is Alt/M- for keybindings
-
-```bash
-"\eh": "\C-gs\C-gb3\C-ge\C-e"
-```
-Pretty trivial:
-1.C-gs to "transfer" the line to bash (start)
-2.C-gb3 execute our bash function (we'll call it show_command_hints) when we'll process the current command line
-3.C-ge to transfer back the modified command line (end)
-4.Return to the last position of our command line in insert mode
-
-
-##Bind Alt-h with the bash function
-
-Above we have typed that C-gb3 will call our bash function (show_command_hints).
-So we need to make that association.
-
 All the user stuff will be added to my_fun.sh, search for BINDS and add:
 
-
 ```bash
-###########
-#  BINDS  #
-###########
+##################
+#  STATIC BINDS  #
+##################
+
 ...
 #Display a cheatsheet for the current command
-bind -x '"\C-gb3": show_command_hints'
-
-```
+asyncBash:Create_Static_Keybinding "\eh" "show_command_hints"
+``
 
 So now, we have make almost all the keybindings (there's one left `ctl-q` ).
-Remember you must make a pretty generic keybinding in asyncBash.inputrc and then the actual user keybinding in my_fun.sh.
-
 
 ##Make the bash function
 
-The last step is to make the function. Let's search for Functions and add: :)
+The next step is to make the function. Let's search for Functions and add: :)
 
 
 ```bash
@@ -123,11 +103,14 @@ So let's fill it:
 #from ~/.local/share/asyncBash/hints
 show_command_hints() {
     [[ -z $asyncBash_current_cmd_line ]] && return
+    asyncBash_input_functionname=$FUNCNAME
     #Clean possible previous asyncBash calls
     asyncBash_clean_screen_msgs
     local -a cmda=($asyncBash_current_cmd_line)
     local cmd=${cmda[0]}
     asyncBash_add_msg_below_ps1 "I will show you a nice cheatsheet for $cmd"
+    #Substitute command line
+    asyncBash_substitute_command_line "${cmda[@]}"
 }
 ```
 
@@ -146,6 +129,7 @@ Let's say that ~/.local/share/asyncBash/hints/$cmd.txt is our path:
 #from ~/.local/share/asyncBash/hints
 show_command_hints() {
     [[ -z $asyncBash_current_cmd_line ]] && return
+    asyncBash_input_functionname=$FUNCNAME
     #Clean possible previous asyncBash calls
     asyncBash_clean_screen_msgs
     local -a cmda=($asyncBash_current_cmd_line)
@@ -155,9 +139,8 @@ show_command_hints() {
     while IFS= read -r line; do 
         asyncBash_add_msg_below_ps1 "$line"
     done < $file
-    local write="${cmda[@]:-1}"
-    #Substitute history line
-    asyncBash_substitute_command_line "$write"
+    #Substitute command line
+    asyncBash_substitute_command_line "${cmda[@]}"
 }
 ```
 
@@ -190,6 +173,7 @@ There is an obvious error we don't check for the file but the important is that 
 #from ~/.local/share/asyncBash/hints
 show_command_hints() {
     [[ -z $asyncBash_current_cmd_line ]] && return
+    asyncBash_input_functionname=$FUNCNAME
     #Clean possible previous asyncBash calls
     asyncBash_clean_screen_msgs
     local -a cmda=($asyncBash_current_cmd_line)
@@ -203,9 +187,8 @@ show_command_hints() {
             asyncBash_add_msg_below_ps1 "$line"
         done < $file
     fi
-    local write="${cmda[@]:-1}"
-    #Substitute history line
-    asyncBash_substitute_command_line "$write"
+    #Substitute command line
+    asyncBash_substitute_command_line "${cmda[@]}"
 }
 
 ```
@@ -250,8 +233,17 @@ Why wasn't it invented before?
 
 Now it is! :roller_coaster:
 
-###FIXED
+
+# TODO
+- [x] Visual selection
+- [ ] Autocompletion with visual selection
+- [ ] Bash Snippets
+- [ ] Visual movement
+- [ ] Copy certain output line to clipboard?
+- [ ] Unit testing?
+
+
+#FIXED
 
 1. ~~output when scrolling is needed~~
 2. ~~chained calls with scroll~~
-
