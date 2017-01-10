@@ -67,7 +67,7 @@ All the user stuff will be added to my_fun.sh, search for BINDS and add:
 ...
 #Display a cheatsheet for the current command
 asyncBash:Create_Static_Keybinding "\eh" "show_command_hints"
-``
+```
 
 So now, we have make almost all the keybindings (there's one left `ctl-q` ).
 
