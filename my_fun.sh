@@ -375,18 +375,19 @@ reset_substring_search() {
     asyncBash:Clean_Screen_Below_PS1 "Search substring was reset"
     #reset substring history search
     asyncBash_input_argument=
-    asyncBash_output_index=-1
+    asyncBash_associate_values=()
+    asyncBash_associate_index=0
 }
 
 #For gg substring history search keybinding
 search_substring_history_first() { 
-    asyncBash_output_index=$((${#asyncBash_output_text[@]}-1))
+    asyncBash_associate_index=$(( ${#asyncBash_associate_values[@]} / 2 ))
     search_substring_history backward first
 }
 
 #For G substring history search keybinding
 search_substring_history_last() { 
-    asyncBash_output_index=0
+    asyncBash_associate_index=-1
     search_substring_history forward last
 }
 
@@ -405,16 +406,34 @@ search_substring_history() {
     local write=
     local end=0
     local found=0
+    local mid=0
+
+    # For each result
+    show_extended_info() {
+        mid=$(( ${#asyncBash_associate_values[@]} / 2 ))
+        local msg1="Position:[$((asyncBash_associate_index+1))/$mid] --> " 
+        local hid=${asyncBash_associate_values[historyid$asyncBash_associate_index]}
+        local msg2=" Historyid:$hid" 
+        # unfortunetly no other than the n00b way
+        local history_line=$(HISTTIMEFORMAT='%c|' history | grep "^[[:space:]]*$hid ") 
+        local temp=(${history_line%|*})
+        local date=${temp[@]:1}
+        local hcmd=${history_line##*|}
+        asyncBash:Add_Msg_Below_PS1 "$msg1 $msg2 Date:$date"
+        asyncBash:Add_Msg_Below_PS1 "Complete command line:${hcmd}"
+    }
 
     #not active search
     if [[ -z $asyncBash_input_argument ]]; then
         #delete all previous messages and clean the screen
         asyncBash:Del_Messages_Below_PS1 0
-        #reset just needed
-        asyncBash_output_text=()
-        asyncBash_output_value=()
         #get last argument
         arg=${cmda[$idx]}
+        #reset just needed
+        asyncBash_associate_values=()
+        asyncBash_associate_index=0
+        #and set the global values
+        asyncBash_input_argument=$arg
 
         #Clean possible previous asyncBash calls
         asyncBash:Clean_Screen_Below_PS1
@@ -430,12 +449,19 @@ search_substring_history() {
                 for elem in ${line[@]:1}; do 
                     if [[ $elem == *$arg* ]]; then
                         #unique elements, so you must do "exhaustive" 
-                        for hay in ${!asyncBash_output_text[@]} ; do
-                            [[ ${asyncBash_output_text[$hay]} == $elem ]] && found=1
+                        for index in $(eval echo {0..$asyncBash_associate_index}); do
+                            if [[ ${asyncBash_associate_values[match$index]} == $elem ]]; then
+                                found=1 
+                                break
+                            fi
                         done
                         if ((!found)); then
-                            asyncBash_output_text+=("$elem") 
-                            asyncBash_output_value+=("${line[0]}") 
+                            #for each match 2 new values in the associative array
+                            # match for the argument
+                            # historyid for the historyid :)
+                            asyncBash_associate_values[match$asyncBash_associate_index]=$elem
+                            asyncBash_associate_values[historyid$asyncBash_associate_index]=${line[0]}
+                            ((asyncBash_associate_index++))
                         fi
                         found=0
                     fi
@@ -446,50 +472,50 @@ search_substring_history() {
         tput hpa 0 #move to column 0
         tput el #clean the from cursor to end of line
 
-        asyncBash:Add_Msg_Below_PS1  "Enter Control-q to reset your search ($arg)" yes
-        asyncBash:Add_Msg_Below_PS1  "Enter gg to go to first result, G to go to the last result" yes
-        asyncBash:Create_Temporal_Keybinding "yes" "G" "search_substring_history_first"
-        asyncBash:Create_Temporal_Keybinding "yes" "gg" "search_substring_history_last"
-
-        #and set the global values
-        asyncBash_input_argument=$arg
-        asyncBash_output_index=0
-        if ((! ${#asyncBash_output_text[@]} )); then
+        if ((!$asyncBash_associate_index)); then
+            asyncBash:Add_Msg_Below_PS1  "Enter Control-q to reset your search ($arg)" yes
             asyncBash:Add_Msg_Below_PS1  "Nothing found!.Try harder :)"
+        else
+            asyncBash:Add_Msg_Below_PS1  "Enter Control-q to reset your search ($arg)" yes
+            asyncBash:Add_Msg_Below_PS1  "Enter gg to go to first result, G to go to the last result" yes
+            asyncBash:Create_Temporal_Keybinding "yes" "G" "search_substring_history_first"
+            asyncBash:Create_Temporal_Keybinding "yes" "gg" "search_substring_history_last"
+            asyncBash_associate_index=0
+            show_extended_info
         fi
     else #active search order by time, so backward is further in time (ctl + r)
-        if [[ $way == backward ]];then
-                if (( asyncBash_output_index < $(( ${#asyncBash_output_text[@]}-1 )) )); then
-                    ((asyncBash_output_index++))
+        if [[ $way == forward ]];then
+               #it holds two elements (msg,historyid) for each result
+                mid=$(( ${#asyncBash_associate_values[@]} / 2 -1))
+                if (( asyncBash_associate_index < $mid ));
+                then
+                    ((asyncBash_associate_index++))
                 else
-                    [[ -n $move ]] && { unset 'cmda[${#cmda[@]}-1]'; cmda+=("${asyncBash_output_text[$asyncBash_output_index]}"); }
+                    if [[ -n $move ]]; then
+                        cmda[-1]=${asyncBash_associate_values[match$asyncBash_associate_index]}
+                    fi
                     end=1
                 fi
         else #forward search
-                if (( asyncBash_output_index > 0 )); then
-                    ((asyncBash_output_index--))
+                if (( asyncBash_associate_index > 0 )); then
+                    ((asyncBash_associate_index--))
                 else
-                    [[ -n $move ]] && { unset 'cmda[${#cmda[@]}-1]'; cmda+=("${asyncBash_output_text[$asyncBash_output_index]}"); }
+                    if [[ -n $move ]]; then
+                        cmda[-1]=${asyncBash_associate_values[match$asyncBash_associate_index]}
+                    fi
                     end=1
                 fi
         fi #end  forward search
 
+       #Show extended info
+       if (( ${#asyncBash_associate_values[@]} )); then
+           show_extended_info
+       fi
    fi # end active search
 
-   if (( ${#asyncBash_output_text[@]} )); then
-       local msg1="Position:[$((asyncBash_output_index+1))/${#asyncBash_output_text[@]}] --> " 
-       local msg2=" Historyid:${asyncBash_output_value[$asyncBash_output_index]}" 
-       # unfortunetly no other than the n00b way
-       local history_line=$(HISTTIMEFORMAT='%c|' history | grep "^[[:space:]]*${asyncBash_output_value[$asyncBash_output_index]} ") 
-       local temp=(${history_line%|*})
-       local date=${temp[@]:1}
-       local hcmd=${history_line##*|}
-       asyncBash:Add_Msg_Below_PS1 "$msg1 $msg2 Date:$date"
-       asyncBash:Add_Msg_Below_PS1 "Complete command line:${hcmd}"
-   fi
 
     if ((!end)); then
-        arg=${asyncBash_output_text[$asyncBash_output_index]}
+        arg=${asyncBash_associate_values[match$asyncBash_associate_index]}
         write="${cmda[@]:0:$idx} $arg"
     else
         write="${cmda[@]} "

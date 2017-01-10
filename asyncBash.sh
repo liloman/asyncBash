@@ -34,6 +34,15 @@ declare -g  asyncBash_current_functionname=
 #Previous asyncBash function name
 declare -g  asyncBash_prev_functionname=
 
+#########
+#  AUX  #
+#########
+
+#Associative array with associated values (for substring search)
+declare -gA asyncBash_associate_values
+#Current associative index position
+declare -gi asyncBash_associate_index=0
+
 ############
 #  output  #
 ############
@@ -127,6 +136,9 @@ asyncBash:Hook() {
 
 #Reset input output
 asyncBash:Reset_Input_Output() {
+    #reset associate
+    asyncBash_associate_values=()
+    asyncBash_associate_index=0
     #reset output values
     asyncBash_output_text=()
     asyncBash_output_value=()
@@ -380,8 +392,11 @@ asyncBash:Show_Msg_Below_PS1() {
         #disable glob expansion
         set -f
         # disable line wrapping (to control real $lines_displayed)
-        # ,current line,clean the screen below
-        tput -S <<< $(echo -e "rmam\nel\ned")
+        tput rmam
+        # current line
+        tput el
+        #clean the screen below
+        tput ed
         #number of messages displayed below ps1
         local -i lines_displayed=$(( ${#asyncBash_msgs_below_ps1[@]} + 1 )) #add the leaved empty line (see above)
         #calculate final row
