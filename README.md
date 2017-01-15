@@ -32,7 +32,7 @@ It cames with 3 predefined keybindings.
 
 ![Relative history expansion](images/history.gif "Relative history expansion")
 
-* Alt-r run current cli without scrolling and show errors on red
+* Alt-r run current cli without scrolling, show errors on red and let select visually the output (just a step behind to power autocompletions for example... ;) )
 
 ![Run static command](images/run.gif "Run static command")
 
