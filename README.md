@@ -176,7 +176,7 @@ There is an obvious error we don't check for the file but the important is that 
 show_command_hints() {
     [[ -z $asyncBash_current_cmd_line ]] && return
     #Clean possible previous asyncBash calls
-    asyncBash_clean_screen_msgs
+    asyncBash:Clean_Screen_Below_PS1
     local -a cmda=($asyncBash_current_cmd_line)
     local cmd=${cmda[0]}
     local file="$HOME/.local/share/asyncBash/hints/$cmd.txt"
@@ -190,7 +190,7 @@ show_command_hints() {
         done < $file
     fi
     #Substitute command line
-    asyncBash_substitute_command_line "${cmda[@]}"
+    asyncBash:Substitute_Command_Line "${cmda[@]}"
 }
 ```
 
