@@ -32,6 +32,10 @@ It cames with 3 predefined keybindings.
 
 ![Relative history expansion](images/history.gif "Relative history expansion")
 
+* Alt-r run current cli without scrolling and show errors on red
+
+![Run static command](images/run.gif "Run static command")
+
 
 #Tutorial
 
@@ -84,7 +88,7 @@ The next step is to make the function. Let's search for Functions and add: :)
 #Display a cheatsheet for the current command
 #from ~/.local/share/asyncBash/hints
 show_command_hints() {
-    asyncBash_add_msg_below_ps1 "I will show you a nice cheatsheet"
+    asyncBash:Add_Msg_Below_PS1 "I will show you a nice cheatsheet"
 }
 ```
 
@@ -104,12 +108,12 @@ So let's fill it:
 show_command_hints() {
     [[ -z $asyncBash_current_cmd_line ]] && return
     #Clean possible previous asyncBash calls
-    asyncBash_clean_screen_msgs
+    asyncBash:Clean_Screen_Below_PS1
     local -a cmda=($asyncBash_current_cmd_line)
     local cmd=${cmda[0]}
-    asyncBash_add_msg_below_ps1 "I will show you a nice cheatsheet for $cmd"
+    asyncBash:Add_Msg_Below_PS1 "I will show you a nice cheatsheet for $cmd"
     #Substitute command line
-    asyncBash_substitute_command_line "${cmda[@]}"
+    asyncBash:Substitute_Command_Line "${cmda[@]}"
 }
 ```
 
@@ -129,16 +133,16 @@ Let's say that ~/.local/share/asyncBash/hints/$cmd.txt is our path:
 show_command_hints() {
     [[ -z $asyncBash_current_cmd_line ]] && return
     #Clean possible previous asyncBash calls
-    asyncBash_clean_screen_msgs
+    asyncBash:Clean_Screen_Below_PS1
     local -a cmda=($asyncBash_current_cmd_line)
     local cmd=${cmda[0]}
     local file="$HOME/.local/share/asyncBash/hints/$cmd.txt"
-    asyncBash_add_msg_below_ps1 "I will show you a nice cheatsheet for $cmd"
+    asyncBash:Add_Msg_Below_PS1  "I will show you a nice cheatsheet for $cmd"
     while IFS= read -r line; do 
-        asyncBash_add_msg_below_ps1 "$line"
+        asyncBash:Add_Msg_Below_PS1 "$file"
     done < $file
     #Substitute command line
-    asyncBash_substitute_command_line "${cmda[@]}"
+    asyncBash:Substitute_Command_Line "${cmda[@]}"
 }
 ```
 
@@ -177,17 +181,17 @@ show_command_hints() {
     local cmd=${cmda[0]}
     local file="$HOME/.local/share/asyncBash/hints/$cmd.txt"
     if [[ -e $file  ]]; then
-        bind -x '"\C-q": asyncBash_clean_screen_msgs'
-        #show a legend with the possible arguments
-        asyncBash_add_msg_below_ps1 "Enter Control-q to clean screen messages" yes
+        #make the keybind, just call a bash function, so nothing fancy this time
+        bind -x '"\C-q": asyncBash:Clean_Screen_Below_PS1'
+        #show a legend with the possible arguments (fixed msg)
+        asyncBash:Add_Msg_Below_PS1  "Enter Control-q to clean screen messages" yes
         while IFS= read -r line; do 
-            asyncBash_add_msg_below_ps1 "$line"
+            asyncBash:Add_Msg_Below_PS1  "$line"
         done < $file
     fi
     #Substitute command line
     asyncBash_substitute_command_line "${cmda[@]}"
 }
-
 ```
 
 Ummm:
@@ -232,10 +236,10 @@ Now it is! :roller_coaster:
 
 
 # TODO
-- [x] Visual selection
-- [ ] Autocompletion with visual selection
+- [x] Visual selection of output
+- [ ] Autocompletion with visual selection 
 - [ ] Bash Snippets
-- [ ] Visual movement
+- [ ] Visual movement (like tmux visual mode)
 - [ ] Copy certain output line to clipboard?
 - [ ] Unit testing?
 
